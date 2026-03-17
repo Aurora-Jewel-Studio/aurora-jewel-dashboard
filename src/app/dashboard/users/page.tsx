@@ -13,7 +13,12 @@ import {
   Shield,
   Trash2,
   Search,
-  MoreVertical,
+  X,
+  Plus,
+  Calendar,
+  Crown,
+  Palette,
+  Briefcase,
 } from "lucide-react";
 
 interface ManagedUser {
@@ -24,6 +29,40 @@ interface ManagedUser {
   created_at: string;
 }
 
+const ROLE_CONFIG: Record<
+  string,
+  { label: string; color: string; icon: typeof Crown; description: string }
+> = {
+  superadmin: {
+    label: "Superadmin",
+    color:
+      "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+    icon: Crown,
+    description: "System Control",
+  },
+  owner: {
+    label: "Owner",
+    color:
+      "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-400",
+    icon: Shield,
+    description: "Full Management",
+  },
+  designer: {
+    label: "Designer",
+    color:
+      "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-400",
+    icon: Palette,
+    description: "CAD & Models",
+  },
+  staff: {
+    label: "Staff",
+    color:
+      "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300",
+    icon: Briefcase,
+    description: "Sales & Ops",
+  },
+};
+
 export default function UsersManagementPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -32,6 +71,7 @@ export default function UsersManagementPage() {
   const [error, setError] = useState("");
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [search, setSearch] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -77,11 +117,6 @@ export default function UsersManagementPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (id === user?.id) {
-      setError("You cannot delete your own account.");
-      return;
-    }
-
     if (
       !confirm(
         `Are you sure you want to delete ${name}? This will permanently remove their access.`,
@@ -96,6 +131,7 @@ export default function UsersManagementPage() {
     } catch (err) {
       console.error("Delete failed:", err);
       setError("Failed to delete user. They might have active dependencies.");
+      setTimeout(() => setError(""), 4000);
     }
   };
 
@@ -111,8 +147,6 @@ export default function UsersManagementPage() {
           </h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
             You do not have permission to access the User Management dashboard.
-            Please contact the system administrator if you believe this is an
-            error.
           </p>
         </div>
       </div>
@@ -125,103 +159,323 @@ export default function UsersManagementPage() {
       u.email.toLowerCase().includes(search.toLowerCase()),
   );
 
+  // Role stats
+  const roleCounts = {
+    total: users.length,
+    designer: users.filter((u) => u.role === "designer").length,
+    staff: users.filter((u) => u.role === "staff").length,
+    owner: users.filter((u) => u.role === "owner").length,
+    superadmin: users.filter((u) => u.role === "superadmin").length,
+  };
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Users className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
-            User Management
+            Team
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Provision and manage access for Aurora Jewel Studio staff.
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            {roleCounts.total} member{roleCounts.total !== 1 ? "s" : ""}
           </p>
         </div>
+
+        {/* Desktop Add Button */}
+        <button
+          onClick={() => setShowCreate(true)}
+          className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20"
+        >
+          <UserPlus className="w-4 h-4" />
+          Add User
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        {/* Left Column: Register Form */}
-        <div className="xl:col-span-1">
-          <div className="bg-white dark:bg-[#12142a]/80 border border-slate-200 dark:border-white/6 rounded-2xl overflow-hidden shadow-sm sticky top-8">
-            <div className="p-6 border-b border-slate-100 dark:border-white/6 bg-slate-50/50 dark:bg-white/5">
+      {/* Role Summary Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          {
+            label: "Designers",
+            count: roleCounts.designer,
+            icon: Palette,
+            color: "text-indigo-600 dark:text-indigo-400",
+            bg: "bg-indigo-50 dark:bg-indigo-500/10",
+          },
+          {
+            label: "Staff",
+            count: roleCounts.staff,
+            icon: Briefcase,
+            color: "text-slate-600 dark:text-slate-400",
+            bg: "bg-slate-100 dark:bg-white/5",
+          },
+          {
+            label: "Owners",
+            count: roleCounts.owner,
+            icon: Shield,
+            color: "text-purple-600 dark:text-purple-400",
+            bg: "bg-purple-50 dark:bg-purple-500/10",
+          },
+          {
+            label: "Admins",
+            count: roleCounts.superadmin,
+            icon: Crown,
+            color: "text-amber-600 dark:text-amber-400",
+            bg: "bg-amber-50 dark:bg-amber-500/10",
+          },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="bg-white dark:bg-[#12142a]/80 border border-slate-200 dark:border-white/6 rounded-xl p-4 flex items-center gap-3"
+          >
+            <div
+              className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center`}
+            >
+              <stat.icon className={`w-5 h-5 ${stat.color}`} />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-slate-900 dark:text-white">
+                {stat.count}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {stat.label}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Search by name or email..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 text-sm bg-white dark:bg-[#0f1120] border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+        />
+      </div>
+
+      {/* Error Toast */}
+      {error && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm animate-in fade-in slide-in-from-top-2">
+          <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+          <span className="flex-1">{error}</span>
+          <button
+            onClick={() => setError("")}
+            className="shrink-0 hover:text-rose-800"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* User Cards Grid */}
+      {usersLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+        </div>
+      ) : filteredUsers.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center mb-4">
+            <Users className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+          </div>
+          <h3 className="text-base font-semibold text-slate-500 dark:text-slate-400">
+            {search ? "No users match your search" : "No team members yet"}
+          </h3>
+          <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
+            {search ? "Try a different search term" : "Add your first team member to get started"}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredUsers.map((u) => {
+            const isSelf = u.id === user?.id;
+            const roleConfig = ROLE_CONFIG[u.role] || ROLE_CONFIG.staff;
+            const RoleIcon = roleConfig.icon;
+
+            return (
+              <div
+                key={u.id}
+                className={`bg-white dark:bg-[#0f1120] border rounded-2xl overflow-hidden transition-all ${
+                  isSelf
+                    ? "border-indigo-200 dark:border-indigo-500/30 ring-1 ring-indigo-100 dark:ring-indigo-500/10"
+                    : "border-slate-200 dark:border-white/10 hover:shadow-md hover:border-slate-300 dark:hover:border-white/20"
+                }`}
+              >
+                <div className="p-5">
+                  {/* Top row: Avatar + Role badge */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold ${
+                          isSelf
+                            ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                            : "bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400"
+                        }`}
+                      >
+                        {u.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {u.name}
+                          </h3>
+                          {isSelf && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-500/20 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
+                              YOU
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          {u.email}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Role + Date row */}
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold ${roleConfig.color}`}
+                    >
+                      <RoleIcon className="w-3 h-3" />
+                      {roleConfig.label}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(u.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action footer — only for non-self users */}
+                {!isSelf && (
+                  <div className="px-5 py-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02]">
+                    <button
+                      onClick={() => handleDelete(u.id, u.name)}
+                      className="flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Remove access
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Mobile FAB */}
+      <button
+        onClick={() => setShowCreate(true)}
+        className="fixed bottom-24 right-5 z-40 sm:hidden w-14 h-14 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-600/30 flex items-center justify-center active:scale-95 transition-transform"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
+
+      {/* Create User Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => {
+              setShowCreate(false);
+              setError("");
+            }}
+          />
+          <div className="relative bg-white dark:bg-[#0c0e1a] rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 w-full sm:max-w-md max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 fade-in duration-300">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-white/6">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 rounded-lg text-indigo-600 dark:text-indigo-400">
                   <UserPlus className="w-5 h-5" />
                 </div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  Add New User
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Add Team Member
                 </h2>
               </div>
+              <button
+                onClick={() => {
+                  setShowCreate(false);
+                  setError("");
+                }}
+                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="p-6">
+            {/* Modal Body */}
+            <div className="p-5">
               {error && (
-                <div className="mb-6 flex items-start gap-3 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm">
+                <div className="mb-5 flex items-start gap-3 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm">
                   <ShieldAlert className="w-5 h-5 shrink-0" />
                   {error}
                 </div>
               )}
 
               {success && (
-                <div className="mb-6 flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-sm">
+                <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-sm">
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
                   User created successfully!
                 </div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Full Name
                   </label>
                   <div className="relative">
-                    <Users className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    <Users className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={form.name}
                       onChange={(e) =>
                         setForm({ ...form, name: e.target.value })
                       }
-                      className="w-full pl-11 pr-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm"
+                      className="w-full pl-10 pr-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm"
                       placeholder="e.g. Jane Doe"
                       required
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
-                    Email Address
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Email
                   </label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="email"
                       value={form.email}
                       onChange={(e) =>
                         setForm({ ...form, email: e.target.value })
                       }
-                      className="w-full pl-11 pr-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm"
+                      className="w-full pl-10 pr-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm"
                       placeholder="jane@aurorajewel.com"
                       required
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
-                    Initial Password
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Password
                   </label>
                   <div className="relative">
-                    <Shield className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    <Shield className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="password"
                       value={form.password}
                       onChange={(e) =>
                         setForm({ ...form, password: e.target.value })
                       }
-                      className="w-full pl-11 pr-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm"
+                      className="w-full pl-10 pr-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm"
                       placeholder="••••••••"
                       required
                       minLength={6}
@@ -229,169 +483,68 @@ export default function UsersManagementPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">
-                    Access Level
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Role
                   </label>
-                  <select
-                    value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value })}
-                    className="w-full px-4 py-3 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-sm appearance-none"
-                  >
-                    <option value="staff">Staff (Sales/Operations)</option>
-                    <option value="designer">Designer (CAD/Models)</option>
-                    <option value="owner">Owner (Full Management)</option>
-                    <option value="superadmin">
-                      Superadmin (System Control)
-                    </option>
-                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(ROLE_CONFIG).map(([key, config]) => {
+                      const Icon = config.icon;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setForm({ ...form, role: key })}
+                          className={`flex items-center gap-2 p-3 rounded-xl border text-left text-sm transition-all ${
+                            form.role === key
+                              ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 ring-1 ring-indigo-500/20"
+                              : "border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20"
+                          }`}
+                        >
+                          <Icon
+                            className={`w-4 h-4 ${
+                              form.role === key
+                                ? "text-indigo-600 dark:text-indigo-400"
+                                : "text-slate-400"
+                            }`}
+                          />
+                          <div>
+                            <p
+                              className={`font-semibold text-xs ${
+                                form.role === key
+                                  ? "text-indigo-700 dark:text-indigo-400"
+                                  : "text-slate-700 dark:text-slate-300"
+                              }`}
+                            >
+                              {config.label}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              {config.description}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3.5 mt-4 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
+                  className="w-full py-3.5 mt-2 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
                 >
                   {loading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <UserPlus className="w-5 h-5" />
                   )}
-                  Create User Account
+                  Create Account
                 </button>
               </form>
             </div>
           </div>
         </div>
-
-        {/* Right Column: User Management / Info */}
-        <div className="xl:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-[#12142a]/80 border border-slate-200 dark:border-white/6 rounded-2xl overflow-hidden shadow-sm">
-            <div className="p-6 border-b border-slate-100 dark:border-white/6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                Active Team Members
-              </h2>
-              <div className="relative w-full md:w-64">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search users..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-slate-50/50 dark:bg-white/5 text-left">
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      User
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Role
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-white/6">
-                  {usersLoading ? (
-                    <tr>
-                      <td colSpan={3} className="px-6 py-12 text-center">
-                        <Loader2 className="w-8 h-8 animate-spin text-slate-300 mx-auto" />
-                        <p className="text-slate-500 mt-2 text-sm">
-                          Loading users...
-                        </p>
-                      </td>
-                    </tr>
-                  ) : filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="px-6 py-12 text-center">
-                        <div className="w-12 h-12 bg-slate-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <Users className="w-6 h-6 text-slate-300" />
-                        </div>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm">
-                          No users found.
-                        </p>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map((u) => (
-                      <tr
-                        key={u.id}
-                        className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group"
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold text-sm">
-                              {u.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <div className="text-sm font-medium text-slate-900 dark:text-white">
-                                {u.name}
-                              </div>
-                              <div className="text-xs text-slate-500 dark:text-slate-400">
-                                {u.email}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
-                            ${
-                              u.role === "superadmin"
-                                ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
-                                : u.role === "owner"
-                                  ? "bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400"
-                                  : u.role === "designer"
-                                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400"
-                                    : "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300"
-                            }`}
-                          >
-                            {u.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all">
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(u.id, u.name)}
-                              className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-all"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Quick Access or Note section */}
-          <div className="bg-indigo-600 dark:bg-indigo-500/90 rounded-2xl p-6 text-white shadow-lg shadow-indigo-600/20">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              Security Information
-            </h3>
-            <p className="mt-2 text-indigo-100 text-sm leading-relaxed">
-              As a superadmin, you are responsible for provisioning accounts.
-              Users created here will receive an immediate activation on their
-              email. Ensure role assignments are correct as they determine
-              access to sensitive financial data and design files.
-            </p>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
