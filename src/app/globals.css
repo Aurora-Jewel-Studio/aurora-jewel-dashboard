@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+}
+
+.dark {
+  --background: #080a16;
+  --foreground: #f8fafc;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    var(--font-sans),
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Smooth transitions */
+* {
+  scroll-behavior: smooth;
+}
+
+/* Input focus styles */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+}
+
+/* Make space for mobile bottom nav and top logo */
+@media (max-width: 1024px) {
+  main {
+    padding-top: 60px; /* Space for minimal top logo bar */
+    padding-bottom: 72px; /* Space for bottom nav */
+  }
+}
+
+/* ===== Mobile Touch Optimizations ===== */
+
+/* Prevent double-tap zoom on interactive elements */
+button,
+a,
+select,
+input,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* Hide horizontal scrollbar for kanban carousel on mobile */
+@media (max-width: 639px) {
+  .kanban-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  .kanban-scroll {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+}
+
+/* Minimum 44px touch targets */
+@media (max-width: 768px) {
+  button,
+  a,
+  select {
+    min-height: 44px;
+  }
+}
+
+/* Smooth momentum scrolling for horizontal scroll */
+.kanban-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 0 16px;
+}
+
+.kanban-scroll > * {
+  scroll-snap-align: start;
+}
+
+/* Full-screen modal on mobile */
+@media (max-width: 768px) {
+  .modal-mobile-full {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+}
