@@ -93,12 +93,18 @@ export async function POST(req: NextRequest) {
         .from("pipeline-files")
         .upload(filePath, buffer, { contentType: referenceImage.type });
 
-      if (!uploadError) {
-        const { data: publicUrl } = supabaseAdmin.storage
-          .from("pipeline-files")
-          .getPublicUrl(filePath);
-        referenceImageUrl = publicUrl.publicUrl;
+      if (uploadError) {
+        console.error("Reference image upload failed:", uploadError);
+        return NextResponse.json(
+          { error: `Image upload failed: ${uploadError.message}. Please ensure the 'pipeline-files' bucket exists in Supabase.` },
+          { status: 500 }
+        );
       }
+      
+      const { data: publicUrl } = supabaseAdmin.storage
+        .from("pipeline-files")
+        .getPublicUrl(filePath);
+      referenceImageUrl = publicUrl.publicUrl;
     }
 
     const { data, error } = await supabaseAdmin
