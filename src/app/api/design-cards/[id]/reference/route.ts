@@ -7,7 +7,7 @@ import {
   forbiddenResponse,
 } from "@/lib/auth-helpers";
 
-// POST /api/design-cards/[id]/final — Upload final design
+// POST /api/design-cards/[id]/reference — Upload Reference Image
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,6 +18,7 @@ export async function POST(
 
     const { id } = await params;
 
+    // Check card exists
     const { data: card } = await supabaseAdmin
       .from("design_cards")
       .select("pipeline_id, assigned_designer_id")
@@ -39,33 +40,37 @@ export async function POST(
     }
 
     const formData = await req.formData();
-    const finalImage = formData.get("final_design") as File | null;
+    const refImage = formData.get("reference_image") as File | null;
 
-    if (!finalImage || finalImage.size === 0) {
+    if (!refImage || refImage.size === 0) {
       return NextResponse.json(
-        { error: "Final design image is required" },
+        { error: "Reference image is required" },
         { status: 400 }
       );
     }
 
-    const ext = finalImage.name.split(".").pop()?.toLowerCase();
-    if (!ext || !["png", "jpg", "jpeg"].includes(ext)) {
+    // Validate file type
+    const ext = refImage.name.split(".").pop()?.toLowerCase();
+    const allowedExts = ["jpg", "jpeg", "png", "webp"];
+    if (!ext || !allowedExts.includes(ext)) {
       return NextResponse.json(
-        { error: "Only PNG and JPG files are allowed" },
+        { error: `Only ${allowedExts.join(", ")} files are allowed` },
         { status: 400 }
       );
     }
 
-    const buffer = Buffer.from(await finalImage.arrayBuffer());
-    const filePath = `pipelines/${card.pipeline_id}/final_${id}_${Date.now()}.${ext}`;
+    const buffer = Buffer.from(await refImage.arrayBuffer());
+    const filePath = `pipelines/${card.pipeline_id}/ref_${id}_${Date.now()}.${ext}`;
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from("pipeline-files")
-      .upload(filePath, buffer, { contentType: finalImage.type });
+      .upload(filePath, buffer, {
+        contentType: refImage.type || "image/jpeg",
+      });
 
     if (uploadError) {
       return NextResponse.json(
-        { error: "Failed to upload final design" },
+        { error: "Failed to upload reference image" },
         { status: 500 }
       );
     }
@@ -77,10 +82,8 @@ export async function POST(
     const { data, error } = await supabaseAdmin
       .from("design_cards")
       .update({
-        final_design_url: publicUrl.publicUrl,
-        final_uploaded_by: user.id,
-        final_uploaded_at: new Date().toISOString(),
-        stage: "final_uploaded",
+        reference_image_url: publicUrl.publicUrl,
+        reference_uploaded_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -93,9 +96,9 @@ export async function POST(
 
     return NextResponse.json({ card: data });
   } catch (err) {
-    console.error("Upload final design error:", err);
+    console.error("Upload Reference error:", err);
     return NextResponse.json(
-      { error: "Failed to upload final design" },
+      { error: "Failed to upload reference image" },
       { status: 500 }
     );
   }

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { pipelinesAPI, authAPI } from "@/lib/api";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Plus,
   Loader2,
@@ -388,10 +389,12 @@ export default function PipelinesPage() {
             >
               <div className="h-40 bg-slate-100 dark:bg-slate-800 relative overflow-hidden flex items-center justify-center">
                 {card.reference_image_url || card.final_design_url ? (
-                  <img
+                  <Image
                     src={(card.final_design_url || card.reference_image_url)!}
                     alt={card.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { authenticate, unauthorizedResponse } from "@/lib/auth-helpers";
+import {
+  authenticate,
+  requireRole,
+  unauthorizedResponse,
+  forbiddenResponse,
+} from "@/lib/auth-helpers";
 
 // POST /api/design-cards/[id]/cad — Upload CAD file
 export async function POST(
@@ -16,7 +21,7 @@ export async function POST(
     // Check card exists
     const { data: card } = await supabaseAdmin
       .from("design_cards")
-      .select("pipeline_id")
+      .select("pipeline_id, assigned_designer_id")
       .eq("id", id)
       .single();
 
@@ -25,6 +30,13 @@ export async function POST(
         { error: "Design card not found" },
         { status: 404 }
       );
+    }
+
+    if (
+      !requireRole(user, "owner", "superadmin") &&
+      card.assigned_designer_id !== user.id
+    ) {
+      return forbiddenResponse(["owner", "superadmin", "assigned designer"]);
     }
 
     const formData = await req.formData();

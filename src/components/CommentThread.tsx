@@ -14,20 +14,44 @@ interface Comment {
 
 interface CommentThreadProps {
   designCardId: string;
+  section: "reference" | "cad" | "final";
 }
 
-export default function CommentThread({ designCardId }: CommentThreadProps) {
+export default function CommentThread({ designCardId, section }: CommentThreadProps) {
   const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const getPrefix = () => {
+    if (section === "reference") return "[REF]";
+    if (section === "cad") return "[CAD]";
+    return "[FINAL]";
+  };
 
   const fetchComments = async () => {
     try {
       const res = await commentsAPI.list(designCardId);
-      setComments(res.data.comments || []);
+      const allComments: Comment[] = res.data.comments || [];
+      const prefix = getPrefix();
+      
+      // Filter logic:
+      // If reference section, show [REF] comments AND legacy comments (no prefix)
+      // Otherwise, strictly match the prefix.
+      const filtered = allComments.filter(c => {
+        if (c.comment_text.startsWith(prefix)) return true;
+        if (section === "reference" && !c.comment_text.startsWith("[")) return true;
+        return false;
+      }).map(c => ({
+        ...c,
+        comment_text: c.comment_text.startsWith(prefix) 
+          ? c.comment_text.slice(prefix.length).trim() 
+          : c.comment_text
+      }));
+
+      setComments(filtered);
     } catch (err) {
       console.error("Failed to fetch comments:", err);
     } finally {
@@ -37,10 +61,12 @@ export default function CommentThread({ designCardId }: CommentThreadProps) {
 
   useEffect(() => {
     fetchComments();
-  }, [designCardId]);
+  }, [designCardId, section]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, [comments]);
 
   const handleSend = async (e: React.FormEvent) => {
@@ -49,8 +75,13 @@ export default function CommentThread({ designCardId }: CommentThreadProps) {
 
     setSending(true);
     try {
-      const res = await commentsAPI.create(designCardId, text.trim());
-      setComments((prev) => [...prev, res.data.comment]);
+      const payloadText = `${getPrefix()} ${text.trim()}`;
+      const res = await commentsAPI.create(designCardId, payloadText);
+      
+      const newComment = res.data.comment;
+      newComment.comment_text = text.trim(); // strip for UI
+
+      setComments((prev) => [...prev, newComment]);
       setText("");
     } catch (err) {
       console.error("Failed to send comment:", err);
@@ -80,7 +111,7 @@ export default function CommentThread({ designCardId }: CommentThreadProps) {
       </div>
 
       {/* Thread */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 max-h-[300px]">
+      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 max-h-[300px]">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
@@ -115,7 +146,6 @@ export default function CommentThread({ designCardId }: CommentThreadProps) {
             </div>
           ))
         )}
-        <div ref={bottomRef} />
       </div>
 
       {/* Input */}

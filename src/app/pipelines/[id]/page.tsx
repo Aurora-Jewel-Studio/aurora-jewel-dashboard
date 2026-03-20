@@ -6,6 +6,8 @@ import { pipelinesAPI, designCardsAPI, authAPI } from "@/lib/api";
 import DesignCardGrid, { DesignCard } from "@/components/DesignCardGrid";
 import DesignCardModal from "@/components/DesignCardModal";
 import { useParams, useRouter } from "next/navigation";
+import NextImage from "next/image";
+import dynamic from "next/dynamic";
 import {
   ArrowLeft,
   Plus,
@@ -15,6 +17,56 @@ import {
   Layers,
   Trash2,
 } from "lucide-react";
+import type { Point, Area } from "react-easy-crop";
+
+const Cropper = dynamic(() => import("react-easy-crop"), { ssr: false }) as any;
+
+const createImage = (url: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.addEventListener("load", () => resolve(image));
+    image.addEventListener("error", (error) => reject(error));
+    image.src = url;
+  });
+
+async function getCroppedImg(
+  imageSrc: string,
+  pixelCrop: Area,
+  fileName: string = "cropped.jpg"
+): Promise<File | null> {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) return null;
+
+  canvas.width = pixelCrop.width;
+  canvas.height = pixelCrop.height;
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  );
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Canvas is empty"));
+        return;
+      }
+      resolve(new File([blob], fileName, { type: "image/jpeg" }));
+    }, "image/jpeg", 0.95);
+  });
+}
+
 
 interface Pipeline {
   id: string;
@@ -50,6 +102,48 @@ export default function PipelineDetailPage() {
     assigned_designer_id: "",
   });
   const [refImageFile, setRefImageFile] = useState<File | null>(null);
+
+  // Cropper State
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [isCropping, setIsCropping] = useState(false);
+
+  const onCropComplete = useCallback((_croppedArea: Area, croppedAreaPixels: Area) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        setImageSrc(reader.result?.toString() || "");
+        setShowCropper(true);
+      });
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCropConfirm = async () => {
+    if (!imageSrc || !croppedAreaPixels) return;
+    setIsCropping(true);
+    try {
+      const croppedFile = await getCroppedImg(imageSrc, croppedAreaPixels, "reference.jpg");
+      if (croppedFile) {
+        setRefImageFile(croppedFile);
+        setShowCropper(false);
+        setImageSrc(null);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsCropping(false);
+    }
+  };
+
 
   const canCreate = user?.role === "owner" || user?.role === "superadmin";
   const isArchived = pipeline?.status === "archived";
@@ -332,9 +426,12 @@ export default function PipelineDetailPage() {
                 <input
                   type="file"
                   accept=".jpg,.jpeg,.png"
-                  onChange={(e) => setRefImageFile(e.target.files?.[0] || null)}
+                  onChange={handleFileChange}
                   className="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-500/20 dark:file:text-indigo-400 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-500/30 cursor-pointer"
                 />
+                {refImageFile && (
+                  <p className="text-xs text-emerald-600 mt-2">✓ Image cropped and ready</p>
+                )}
               </div>
               <button
                 type="submit"
@@ -345,6 +442,36 @@ export default function PipelineDetailPage() {
                 Add Design
               </button>
             </form>
+
+            {/* Cropper Modal Overlay */}
+            {showCropper && imageSrc && (
+              <div className="absolute inset-0 z-50 bg-white dark:bg-[#0c0e1a] rounded-t-2xl sm:rounded-2xl p-6 flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Crop Image</h3>
+                  <button onClick={() => setShowCropper(false)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="relative flex-1 bg-slate-100 dark:bg-black rounded-xl overflow-hidden min-h-[300px]">
+                  <Cropper
+                    image={imageSrc}
+                    crop={crop}
+                    zoom={zoom}
+                    aspect={4 / 5}
+                    onCropChange={setCrop}
+                    onCropComplete={onCropComplete}
+                    onZoomChange={setZoom}
+                  />
+                </div>
+                <button
+                  onClick={handleCropConfirm}
+                  disabled={isCropping}
+                  className="w-full mt-4 py-3 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition flex justify-center items-center gap-2"
+                >
+                  {isCropping ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirm Crop"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

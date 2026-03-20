@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import {
   MessageCircle,
   ImageIcon,
@@ -137,15 +138,17 @@ function DesignCardItem({
   return (
     <div
       onClick={() => onCardClick(card)}
-      className="bg-white dark:bg-[#0f1120] border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden cursor-pointer hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-500/30 transition-all active:scale-[0.98] group"
+      className="bg-white dark:bg-[#0f1120] border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden cursor-pointer hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-500/30 transition-all active:scale-[0.98] group"
     >
       {/* Image */}
-      <div className="relative h-44 sm:h-48 bg-slate-100 dark:bg-slate-800 overflow-hidden">
+      <div className="relative aspect-4/5 bg-slate-100 dark:bg-slate-800 overflow-hidden">
         {imageUrl ? (
-          <img
+          <Image
             src={imageUrl}
             alt={card.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -170,32 +173,32 @@ function DesignCardItem({
 
         {/* Comment count badge */}
         {card.comment_count > 0 && (
-          <div className="absolute top-2.5 left-2.5 flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/50 backdrop-blur-sm text-white text-[11px] font-medium">
-            <MessageCircle className="w-3 h-3" />
+          <div className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-sm text-white text-[9px] font-medium">
+            <MessageCircle className="w-2.5 h-2.5" />
             {card.comment_count}
           </div>
         )}
       </div>
 
       {/* Card body */}
-      <div className="p-3.5">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+      <div className="p-2.5">
+        <h3 className="text-xs font-bold text-slate-900 dark:text-white truncate">
           {card.title}
         </h3>
 
         {/* Progress dots */}
-        <div className="flex items-center gap-3 mt-2.5">
+        <div className="flex items-center gap-2 mt-2">
           {steps.map((step, i) => (
-            <div key={i} className="flex items-center gap-1.5">
+            <div key={i} className="flex items-center gap-1">
               <div
-                className={`w-2 h-2 rounded-full ${
+                className={`w-1.5 h-1.5 rounded-full ${
                   step.done
                     ? "bg-emerald-500"
                     : "bg-slate-200 dark:bg-slate-700"
                 }`}
               />
               <span
-                className={`text-[10px] font-medium ${
+                className={`text-[9px] font-medium ${
                   step.done
                     ? "text-emerald-600 dark:text-emerald-400"
                     : "text-slate-400 dark:text-slate-500"
@@ -208,20 +211,20 @@ function DesignCardItem({
         </div>
 
         {/* Designer + date */}
-        <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-slate-100 dark:border-white/5">
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-white/5">
           {card.assigned_designer ? (
-            <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
-                <span className="text-[9px] font-bold text-indigo-700 dark:text-indigo-400">
+            <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+              <div className="w-4 h-4 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
+                <span className="text-[8px] font-bold text-indigo-700 dark:text-indigo-400">
                   {card.assigned_designer.name.charAt(0).toUpperCase()}
                 </span>
               </div>
               {card.assigned_designer.name}
             </span>
           ) : (
-            <span className="text-xs text-slate-400">Unassigned</span>
+            <span className="text-[10px] text-slate-400 italic">Unassigned</span>
           )}
-          <span className="text-[10px] text-slate-400">
+          <span className="text-[9px] text-slate-400">
             {new Date(card.created_at).toLocaleDateString()}
           </span>
         </div>
@@ -308,7 +311,7 @@ export default function DesignCardGrid({
       )}
 
       {/* Card Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-3">
         {filteredCards.map((card) => (
           <DesignCardItem
             key={card.id}

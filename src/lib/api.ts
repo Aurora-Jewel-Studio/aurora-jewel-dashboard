@@ -98,6 +98,10 @@ export const designCardsAPI = {
     }),
   updateStage: (id: string, stage: string) =>
     api.patch(`/design-cards/${id}`, { stage }),
+  updateReference: (id: string, formData: FormData) =>
+    api.post(`/design-cards/${id}/reference`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
   uploadCad: (id: string, formData: FormData) =>
     api.post(`/design-cards/${id}/cad`, formData, {
       headers: { "Content-Type": "multipart/form-data" },

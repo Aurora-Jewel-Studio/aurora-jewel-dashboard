@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { authenticate, unauthorizedResponse } from "@/lib/auth-helpers";
+import {
+  authenticate,
+  requireRole,
+  unauthorizedResponse,
+  forbiddenResponse,
+} from "@/lib/auth-helpers";
 
 // GET /api/design-cards/[id] — Get single card
 export async function GET(
@@ -52,6 +57,24 @@ export async function PATCH(
     if (!user) return unauthorizedResponse();
 
     const { id } = await params;
+
+    const { data: existingCard } = await supabaseAdmin
+      .from("design_cards")
+      .select("assigned_designer_id")
+      .eq("id", id)
+      .single();
+
+    if (!existingCard) {
+      return NextResponse.json({ error: "Card not found" }, { status: 404 });
+    }
+
+    if (
+      !requireRole(user, "owner", "superadmin") &&
+      existingCard.assigned_designer_id !== user.id
+    ) {
+      return forbiddenResponse(["owner", "superadmin", "assigned designer"]);
+    }
+
     const updates = await req.json();
 
     // Validate stage if provided

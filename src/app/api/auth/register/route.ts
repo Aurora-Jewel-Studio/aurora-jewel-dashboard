@@ -15,9 +15,13 @@ export async function POST(req: NextRequest) {
 
     const { email, password, name, role, portfolio_link } = await req.json();
 
-    if (!email || !password || !name) {
+    if (
+      !email || typeof email !== "string" || email.length > 255 ||
+      !password || typeof password !== "string" || password.length > 72 || password.length < 6 ||
+      !name || typeof name !== "string" || name.length > 100
+    ) {
       return NextResponse.json(
-        { error: "Email, password, and name are required" },
+        { error: "Invalid email, password, or name format/length" },
         { status: 400 }
       );
     }
