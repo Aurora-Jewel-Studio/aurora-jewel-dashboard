@@ -177,7 +177,9 @@ export default function PriceConverterPage() {
               onChange={(e) => setMargin(parseInt(e.target.value) || 0)}
               className="w-16 px-2 py-1.5 text-sm text-center rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white font-semibold focus:ring-2 focus:ring-indigo-500 outline-none"
             />
-            <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">%</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+              %
+            </span>
           </div>
         </div>
 
@@ -203,16 +205,17 @@ export default function PriceConverterPage() {
         {/* Status Messages */}
         {status === "success" && (
           <div className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
-            <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
             <p className="text-sm text-emerald-700 dark:text-emerald-400">
-              Excel file downloaded! INR prices have been converted to NPR with {margin}% margin applied.
+              Excel file downloaded! INR prices have been converted to NPR with{" "}
+              {margin}% margin applied.
             </p>
           </div>
         )}
 
         {status === "error" && (
           <div className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20">
-            <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0" />
+            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
             <p className="text-sm text-rose-700 dark:text-rose-400">
               {errorMsg}
             </p>
@@ -227,25 +230,25 @@ export default function PriceConverterPage() {
           </h3>
           <div className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
             <div className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
                 1
               </span>
               Upload a scanned or text-based PDF containing jewel pricing
             </div>
             <div className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
                 2
               </span>
               AI Vision reads images, stones, quantities, weights & INR prices
             </div>
             <div className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center shrink-00 mt-0.5">
                 3
               </span>
               Prices are converted: INR → NPR (×1.6015) with your margin applied
             </div>
             <div className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
                 4
               </span>
               Download a professional Excel with formulas for easy adjustments
@@ -256,8 +259,6 @@ export default function PriceConverterPage() {
         {/* Conversion Rate Info */}
         <div className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-400 dark:text-slate-500">
           <span>1 INR = 1.6015 NPR</span>
-          <span>•</span>
-          <span>Powered by AI Vision OCR</span>
         </div>
       </div>
     </div>
