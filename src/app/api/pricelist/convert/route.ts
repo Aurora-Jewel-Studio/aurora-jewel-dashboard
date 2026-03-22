@@ -4,7 +4,7 @@ import { authenticate, unauthorizedResponse } from "@/lib/auth-helpers";
 import * as ExcelJS from "exceljs";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const OPENROUTER_MODEL = "google/gemma-3-27b-it:free";
+const OPENROUTER_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
 const INR_TO_NPR = 1.6015;
 
 interface ExtractedItem {
