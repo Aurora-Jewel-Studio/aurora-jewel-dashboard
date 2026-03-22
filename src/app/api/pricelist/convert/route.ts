@@ -384,22 +384,37 @@ export async function POST(req: NextRequest) {
     if (!user) return unauthorizedResponse();
 
     const formData = await req.formData();
-    const file = formData.get("file") as File | null;
+    const fileUrl = formData.get("file_url") as string | null;
+    const fileName = (formData.get("file_name") as string | null) || "document.pdf";
     const marginStr = formData.get("margin") as string | null;
     const marginPercent = marginStr ? parseFloat(marginStr) : 30;
 
-    if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    let pdfBuffer: Buffer;
+
+    if (fileUrl) {
+      // Fetch the file from the provided URL (Storage path)
+      const fileResp = await fetch(fileUrl);
+      if (!fileResp.ok) {
+        return NextResponse.json(
+          { error: `Failed to fetch file from storage: ${fileResp.statusText}` },
+          { status: 400 },
+        );
+      }
+      pdfBuffer = Buffer.from(await fileResp.arrayBuffer());
+    } else {
+      const file = formData.get("file") as File | null;
+      if (!file) {
+        return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      }
+      if (!file.name.toLowerCase().endsWith(".pdf")) {
+        return NextResponse.json(
+          { error: "Only PDF files are accepted" },
+          { status: 400 },
+        );
+      }
+      pdfBuffer = Buffer.from(await file.arrayBuffer());
     }
 
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      return NextResponse.json(
-        { error: "Only PDF files are accepted" },
-        { status: 400 },
-      );
-    }
-
-    const pdfBuffer = Buffer.from(await file.arrayBuffer());
     const pdfBase64 = pdfBuffer.toString("base64");
 
     // Extract items using Vision AI + images from PDF in parallel
@@ -422,7 +437,7 @@ export async function POST(req: NextRequest) {
     const excelBuffer = await createExcel(items, images, marginPercent);
 
     // Store PDF reference in database
-    const pdfPath = `pricelists/${user.id}/${Date.now()}_${file.name}`;
+    const pdfPath = `pricelists/${user.id}/${Date.now()}_${fileName}`;
     await supabaseAdmin.storage
       .from("price-lists")
       .upload(pdfPath, pdfBuffer, { contentType: "application/pdf" });
@@ -438,7 +453,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Return Excel file
-    const outputFilename = file.name.replace(".pdf", "") + "_priced.xlsx";
+    const outputFilename = fileName.replace(".pdf", "") + "_priced.xlsx";
 
     return new NextResponse(excelBuffer as any, {
       status: 200,

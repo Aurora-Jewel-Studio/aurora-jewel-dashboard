@@ -14,11 +14,12 @@ import {
   Sparkles,
   Percent,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase-client";
 
 const STEPS = [
-  "Uploading PDF...",
-  "Reading pages with AI Vision...",
-  "Extracting jewel data...",
+  "Uploading PDF to secure storage...",
+  "Reading pages with Gemini AI...",
+  "Extracting jewel data & images...",
   "Generating Excel with NPR pricing...",
 ];
 
@@ -54,11 +55,29 @@ export default function PriceConverterPage() {
     // Animate through steps
     const stepInterval = setInterval(() => {
       setStepIndex((prev) => (prev < STEPS.length - 1 ? prev + 1 : prev));
-    }, 3000);
+    }, 4500);
 
     try {
+      // 1. Upload to Supabase Storage first (Bypasses Vercel 4.5MB payload limit)
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `temp-uploads/${fileName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("price-lists")
+        .upload(filePath, file);
+
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("price-lists")
+        .getPublicUrl(filePath);
+
+      // 2. Call API with the URL
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file_url", publicUrl);
+      formData.append("file_name", file.name);
       formData.append("margin", margin.toString());
 
       const response = await pricelistAPI.convert(formData);
