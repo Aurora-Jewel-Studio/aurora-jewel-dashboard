@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { authenticate, unauthorizedResponse } from "@/lib/auth-helpers";
 import * as ExcelJS from "exceljs";
+import { GoogleGenAI } from "@google/genai";
 
-const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const OPENROUTER_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
 const INR_TO_NPR = 1.6015;
 
 interface ExtractedItem {
@@ -17,82 +16,52 @@ interface ExtractedItem {
 }
 
 /**
- * Send PDF page(s) as base64 to OpenRouter Vision API for structured extraction.
+ * Send PDF to Gemini Vision API for structured extraction using the new SDK.
  */
 async function extractWithVision(pdfBase64: string): Promise<ExtractedItem[]> {
-  const apiKey = process.env.OPENROUTER_API;
+  const apiKey = process.env.GEMINI_API;
   if (!apiKey) {
-    throw new Error("OPENROUTER_API key is not configured");
+    throw new Error("GEMINI_API key is not configured");
   }
 
-  const systemPrompt = `You are a jewelry price list OCR expert. You will receive an image of a jewelry catalog/price list page. Extract ALL items from the page into a structured JSON array.
+  const ai = new GoogleGenAI({ apiKey });
+
+  const prompt = `You are a jewelry price list OCR expert. Extract ALL items from this PDF price list into a structured JSON array.
 
 For each item, extract:
-- "sn": serial number (integer, auto-increment if not visible)
-- "name": item name/title (e.g. "Silver Ring", "Gold Pendant")
-- "details": materials, stones, and other specifications (e.g. "CZ stones, 925 Silver, Rhodium plated")
-- "quantity": total quantity shown (integer, default 1 if not clear)
-- "weight": weight in grams as a string (e.g. "5.2g")
-- "price_inr": the total price in Indian Rupees as a number (remove ₹, Rs, commas). This is the price for the TOTAL quantity.
+- "sn": serial number (integer)
+- "name": item name/title
+- "details": materials, stones, and specifications
+- "quantity": total quantity (integer, default 1)
+- "weight": weight string
+- "price_inr": total price in Indian Rupees (number only)
 
+Return a plain JSON array of objects.
 Rules:
-- Return ONLY valid JSON array, no markdown, no explanation.
-- If a value is unclear, make your best guess.
-- Prices are in Indian Rupees (INR).
-- Include every single item row you can see, do not skip any.
-- If the page has no items, return an empty array [].
-
-Example output:
-[{"sn":1,"name":"Silver CZ Ring","details":"925 Silver, CZ stones, Rhodium finish","quantity":12,"weight":"45.6g","price_inr":8500},{"sn":2,"name":"Gold Pendant","details":"22K Gold, Ruby stone","quantity":6,"weight":"18.3g","price_inr":42000}]`;
-
-  const response = await fetch(OPENROUTER_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: OPENROUTER_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Extract all jewelry items with their details, quantities, weights, and prices from this price list. Return as a JSON array.",
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:application/pdf;base64,${pdfBase64}`,
-              },
-            },
-          ],
-        },
-      ],
-      max_tokens: 4096,
-      temperature: 0.1,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.text();
-    console.error("OpenRouter API error:", errorData);
-    throw new Error(`OpenRouter API returned ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || "[]";
-
-  // Parse JSON from the response (handle potential markdown wrapping)
-  let jsonStr = content.trim();
-  if (jsonStr.startsWith("```")) {
-    jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
-  }
+- Include every item row.
+- If no items, return [].
+- Strictly return valid JSON.`;
 
   try {
-    const items: ExtractedItem[] = JSON.parse(jsonStr);
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [
+        { text: prompt },
+        {
+          inlineData: {
+            mimeType: "application/pdf",
+            data: pdfBase64,
+          },
+        },
+      ],
+      config: {
+        responseMimeType: "application/json",
+      },
+    });
+
+    const content = response.text || "[]";
+
+    const items: ExtractedItem[] = JSON.parse(content);
     return items.map((item, idx) => ({
       sn: item.sn || idx + 1,
       name: item.name || "Unknown Item",
@@ -101,9 +70,12 @@ Example output:
       weight: item.weight || "",
       price_inr: typeof item.price_inr === "number" ? item.price_inr : 0,
     }));
-  } catch (e) {
-    console.error("Failed to parse AI response:", jsonStr);
-    throw new Error("AI returned invalid JSON. Please try again.");
+  } catch (err: any) {
+    console.error("Gemini SDK Error:", err);
+    if (err.message && err.message.includes("JSON")) {
+      throw new Error("AI returned invalid JSON. Please try again.");
+    }
+    throw new Error(`Gemini Error: ${err.message || "Failed to extract data"}`);
   }
 }
 

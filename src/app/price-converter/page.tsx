@@ -242,7 +242,7 @@ export default function PriceConverterPage() {
               AI Vision reads images, stones, quantities, weights & INR prices
             </div>
             <div className="flex items-start gap-3">
-              <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center shrink-00 mt-0.5">
+              <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
                 3
               </span>
               Prices are converted: INR → NPR (×1.6015) with your margin applied
