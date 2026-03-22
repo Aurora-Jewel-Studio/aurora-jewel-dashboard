@@ -57,9 +57,7 @@ export const leadsAPI = {
 
 // ============ Price List ============
 export const pricelistAPI = {
-  convert: (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
+  convert: (formData: FormData) => {
     return api.post("/pricelist/convert", formData, {
       headers: { "Content-Type": "multipart/form-data" },
       responseType: "blob",
@@ -98,6 +96,8 @@ export const designCardsAPI = {
     }),
   updateStage: (id: string, stage: string) =>
     api.patch(`/design-cards/${id}`, { stage }),
+  update: (id: string, data: Record<string, unknown>) =>
+    api.patch(`/design-cards/${id}`, data),
   updateReference: (id: string, formData: FormData) =>
     api.post(`/design-cards/${id}/reference`, formData, {
       headers: { "Content-Type": "multipart/form-data" },

@@ -58,6 +58,9 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const pipeline_id = formData.get("pipeline_id") as string;
     const title = formData.get("title") as string;
+    const description = formData.get("description") as string | null;
+    const quantityStr = formData.get("quantity");
+    const quantity = quantityStr ? parseInt(quantityStr as string, 10) : 1;
     const assigned_designer_id = formData.get("assigned_designer_id") as string | null;
     const referenceImage = formData.get("reference_image") as File | null;
 
@@ -112,6 +115,8 @@ export async function POST(req: NextRequest) {
       .insert({
         pipeline_id,
         title,
+        description: description || null,
+        quantity,
         reference_image_url: referenceImageUrl,
         reference_uploaded_by: user.id,
         reference_uploaded_at: referenceImageUrl ? new Date().toISOString() : null,

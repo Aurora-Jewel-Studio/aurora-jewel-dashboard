@@ -112,6 +112,40 @@ export default function DesignCardModal({ card, onClose, onCardUpdate, isArchive
   const [uploading, setUploading] = useState<"cad" | "final" | "reference" | null>(null);
   const [stageDropdownOpen, setStageDropdownOpen] = useState(false);
 
+  // Editable fields state
+  const canEditDetails = !isArchived && (user?.role === "owner" || user?.role === "superadmin");
+  const [editQuantity, setEditQuantity] = useState(card.quantity || 1);
+  const [editDescription, setEditDescription] = useState(card.description || "");
+  const [savingDetails, setSavingDetails] = useState(false);
+
+  const handleSaveQuantity = async () => {
+    if (editQuantity === (card.quantity || 1)) return;
+    setSavingDetails(true);
+    try {
+      const res = await designCardsAPI.update(card.id, { quantity: editQuantity });
+      onCardUpdate({ ...card, ...res.data.card, comment_count: card.comment_count });
+    } catch (err) {
+      console.error("Failed to update quantity:", err);
+      setEditQuantity(card.quantity || 1);
+    } finally {
+      setSavingDetails(false);
+    }
+  };
+
+  const handleSaveDescription = async () => {
+    if (editDescription === (card.description || "")) return;
+    setSavingDetails(true);
+    try {
+      const res = await designCardsAPI.update(card.id, { description: editDescription });
+      onCardUpdate({ ...card, ...res.data.card, comment_count: card.comment_count });
+    } catch (err) {
+      console.error("Failed to update description:", err);
+      setEditDescription(card.description || "");
+    } finally {
+      setSavingDetails(false);
+    }
+  };
+
   // Cropper State
   const [showCropper, setShowCropper] = useState(false);
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
@@ -346,7 +380,56 @@ export default function DesignCardModal({ card, onClose, onCardUpdate, isArchive
                 )}
               </div>
               <div className="md:col-span-3 rounded-xl border border-slate-200 dark:border-white/10 flex flex-col bg-slate-50/30 dark:bg-white/2" style={{ minHeight: "350px" }}>
-                <CommentThread designCardId={card.id} section="reference" />
+                <div className="flex-1 p-5 overflow-y-auto">
+                  <div className="mb-6">
+                    <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Quantity Required</h4>
+                    {canEditDetails ? (
+                      <input
+                        type="number"
+                        min="1"
+                        value={editQuantity}
+                        onChange={(e) => setEditQuantity(parseInt(e.target.value) || 1)}
+                        onBlur={handleSaveQuantity}
+                        className="w-24 px-4 py-2 rounded-lg bg-white dark:bg-[#0c0e1a] border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-400 font-bold text-lg focus:ring-2 focus:ring-indigo-500 outline-none text-center"
+                      />
+                    ) : (
+                      <div className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 font-bold text-lg border border-indigo-100 dark:border-indigo-500/20">
+                        {card.quantity || 1}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Description / Caption</h4>
+                    {canEditDetails ? (
+                      <div>
+                        <textarea
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          rows={4}
+                          placeholder="Add a description or caption..."
+                          className="w-full p-4 rounded-xl bg-white dark:bg-[#0c0e1a] border border-slate-200 dark:border-white/10 text-sm text-slate-700 dark:text-slate-300 leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                        />
+                        {editDescription !== (card.description || "") && (
+                          <button
+                            onClick={handleSaveDescription}
+                            disabled={savingDetails}
+                            className="mt-2 px-4 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition flex items-center gap-1.5"
+                          >
+                            {savingDetails ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            Save
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-xl bg-white dark:bg-[#0c0e1a] border border-slate-100 dark:border-white/5 shadow-sm min-h-[120px]">
+                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                          {card.description || <span className="text-slate-400 italic">No description provided.</span>}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

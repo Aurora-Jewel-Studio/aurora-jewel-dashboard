@@ -13,6 +13,8 @@ import {
 export interface DesignCard {
   id: string;
   title: string;
+  description: string | null;
+  quantity: number;
   stage: string;
   reference_image_url: string | null;
   cad_file_url: string | null;

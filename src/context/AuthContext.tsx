@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (token && user) {
+    if (token) {
       // Verify token is still valid
       authAPI
         .me()
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     Promise.resolve().then(() => setLoading(false));
-  }, [token, user]);
+  }, [token]);
 
   const login = async (email: string, password: string) => {
     const response = await authAPI.login(email, password);

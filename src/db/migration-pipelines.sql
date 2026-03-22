@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS design_cards (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   pipeline_id UUID REFERENCES pipelines(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
+  description TEXT,
+  quantity INTEGER DEFAULT 1,
   reference_image_url TEXT,
   reference_uploaded_by UUID REFERENCES users(id),
   reference_uploaded_at TIMESTAMPTZ,

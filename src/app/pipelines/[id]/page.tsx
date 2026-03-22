@@ -99,6 +99,8 @@ export default function PipelineDetailPage() {
   const [designers, setDesigners] = useState<DesignerUser[]>([]);
   const [cardForm, setCardForm] = useState({
     title: "",
+    description: "",
+    quantity: 1,
     assigned_designer_id: "",
   });
   const [refImageFile, setRefImageFile] = useState<File | null>(null);
@@ -205,6 +207,8 @@ export default function PipelineDetailPage() {
       const formData = new FormData();
       formData.append("pipeline_id", pipelineId);
       formData.append("title", cardForm.title.trim());
+      formData.append("description", cardForm.description.trim());
+      formData.append("quantity", cardForm.quantity.toString());
       if (cardForm.assigned_designer_id) {
         formData.append("assigned_designer_id", cardForm.assigned_designer_id);
       }
@@ -215,7 +219,7 @@ export default function PipelineDetailPage() {
       const res = await designCardsAPI.create(formData);
       setCards((prev) => [...prev, res.data.card]);
       setShowCreate(false);
-      setCardForm({ title: "", assigned_designer_id: "" });
+      setCardForm({ title: "", description: "", quantity: 1, assigned_designer_id: "" });
       setRefImageFile(null);
     } catch (err) {
       console.error("Failed to create card:", err);
@@ -404,20 +408,47 @@ export default function PipelineDetailPage() {
                   required
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Quantity *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={cardForm.quantity}
+                    onChange={(e) => setCardForm({ ...cardForm, quantity: parseInt(e.target.value) || 1 })}
+                    className="w-full px-3 py-3 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Assign Designer
+                  </label>
+                  <select
+                    value={cardForm.assigned_designer_id}
+                    onChange={(e) => setCardForm({ ...cardForm, assigned_designer_id: e.target.value })}
+                    className="w-full px-3 py-3 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                  >
+                    <option value="">Unassigned</option>
+                    {designers.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Assign Designer
+                  Description
                 </label>
-                <select
-                  value={cardForm.assigned_designer_id}
-                  onChange={(e) => setCardForm({ ...cardForm, assigned_designer_id: e.target.value })}
-                  className="w-full px-3 py-3 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                >
-                  <option value="">Unassigned</option>
-                  {designers.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
+                <textarea
+                  value={cardForm.description}
+                  onChange={(e) => setCardForm({ ...cardForm, description: e.target.value })}
+                  placeholder="Caption or description (e.g. Needs 2mm moissanite)..."
+                  rows={2}
+                  className="w-full px-3 py-3 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none resize-none"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
