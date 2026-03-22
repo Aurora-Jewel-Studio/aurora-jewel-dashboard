@@ -200,7 +200,7 @@ export default function PipelineDetailPage() {
 
   const handleCreateCard = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cardForm.title.trim()) return;
+    if (!refImageFile) return;
     setCreating(true);
 
     try {
@@ -397,7 +397,7 @@ export default function PipelineDetailPage() {
             <form onSubmit={handleCreateCard} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Design Title *
+                  Design Title (Optional)
                 </label>
                 <input
                   type="text"
@@ -405,7 +405,6 @@ export default function PipelineDetailPage() {
                   onChange={(e) => setCardForm({ ...cardForm, title: e.target.value })}
                   placeholder="e.g. Diamond Pendant #42"
                   className="w-full px-3 py-3 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                  required
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -452,7 +451,7 @@ export default function PipelineDetailPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Reference Image
+                  Reference Image *
                 </label>
                 <input
                   type="file"
@@ -466,7 +465,7 @@ export default function PipelineDetailPage() {
               </div>
               <button
                 type="submit"
-                disabled={creating || !cardForm.title.trim()}
+                disabled={creating || !refImageFile}
                 className="w-full py-3 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
               >
                 {creating && <Loader2 className="w-4 h-4 animate-spin" />}

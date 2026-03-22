@@ -57,16 +57,24 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const pipeline_id = formData.get("pipeline_id") as string;
-    const title = formData.get("title") as string;
+    const titleInput = formData.get("title") as string;
+    const title = titleInput ? titleInput.trim() : "Untitled Design";
     const description = formData.get("description") as string | null;
     const quantityStr = formData.get("quantity");
     const quantity = quantityStr ? parseInt(quantityStr as string, 10) : 1;
     const assigned_designer_id = formData.get("assigned_designer_id") as string | null;
     const referenceImage = formData.get("reference_image") as File | null;
 
-    if (!pipeline_id || !title) {
+    if (!pipeline_id) {
       return NextResponse.json(
-        { error: "Pipeline ID and title are required" },
+        { error: "Pipeline ID is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!referenceImage || referenceImage.size === 0) {
+      return NextResponse.json(
+        { error: "Reference image is required" },
         { status: 400 }
       );
     }
