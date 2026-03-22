@@ -4,7 +4,7 @@ import { authenticate, unauthorizedResponse } from "@/lib/auth-helpers";
 import * as ExcelJS from "exceljs";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const OPENROUTER_MODEL = "openai/gpt-oss-120b:free";
+const OPENROUTER_MODEL = "google/gemma-3-27b-it:free";
 const INR_TO_NPR = 1.6015;
 
 interface ExtractedItem {
@@ -112,7 +112,7 @@ Example output:
  */
 async function createExcel(
   items: ExtractedItem[],
-  marginPercent: number
+  marginPercent: number,
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet("Price List");
@@ -150,7 +150,12 @@ async function createExcel(
   ws.mergeCells("A1:J1");
   const titleCell = ws.getCell("A1");
   titleCell.value = "Aurora Jewel Studio — Price List (NPR)";
-  titleCell.font = { name: "Calibri", bold: true, size: 14, color: { argb: "FF1a1a2e" } };
+  titleCell.font = {
+    name: "Calibri",
+    bold: true,
+    size: 14,
+    color: { argb: "FF1a1a2e" },
+  };
   titleCell.alignment = { horizontal: "center", vertical: "middle" };
   ws.getRow(1).height = 30;
 
@@ -158,7 +163,12 @@ async function createExcel(
   ws.mergeCells("A2:J2");
   const subtitleCell = ws.getCell("A2");
   subtitleCell.value = `Conversion Rate: 1 INR = ${INR_TO_NPR} NPR  |  Default Margin: ${marginPercent}%`;
-  subtitleCell.font = { name: "Calibri", size: 10, italic: true, color: { argb: "FF666666" } };
+  subtitleCell.font = {
+    name: "Calibri",
+    size: 10,
+    italic: true,
+    color: { argb: "FF666666" },
+  };
   subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
   ws.getRow(2).height = 20;
 
@@ -187,7 +197,8 @@ async function createExcel(
     const item = items[i];
     const excelRow = i + 4; // row 4 onwards (1=title, 2=subtitle, 3=header)
 
-    const unitPriceINR = item.quantity > 0 ? item.price_inr / item.quantity : item.price_inr;
+    const unitPriceINR =
+      item.quantity > 0 ? item.price_inr / item.quantity : item.price_inr;
     const unitPriceNPR = unitPriceINR * INR_TO_NPR;
     const sellingPrice = unitPriceNPR * (1 + marginPercent / 100);
 
@@ -199,7 +210,10 @@ async function createExcel(
       item.weight,
       item.price_inr,
       // Formula-based for unit price so it stays dynamic
-      { formula: `IF(D${excelRow}>0,F${excelRow}/D${excelRow},F${excelRow})`, result: unitPriceINR },
+      {
+        formula: `IF(D${excelRow}>0,F${excelRow}/D${excelRow},F${excelRow})`,
+        result: unitPriceINR,
+      },
       { formula: `G${excelRow}*${INR_TO_NPR}`, result: unitPriceNPR },
       marginPercent,
       { formula: `H${excelRow}*(1+I${excelRow}/100)`, result: sellingPrice },
@@ -241,9 +255,15 @@ async function createExcel(
       "",
       "TOTAL",
       "",
-      { formula: `SUM(D4:D${lastDataRow})`, result: items.reduce((a, b) => a + b.quantity, 0) },
+      {
+        formula: `SUM(D4:D${lastDataRow})`,
+        result: items.reduce((a, b) => a + b.quantity, 0),
+      },
       "",
-      { formula: `SUM(F4:F${lastDataRow})`, result: items.reduce((a, b) => a + b.price_inr, 0) },
+      {
+        formula: `SUM(F4:F${lastDataRow})`,
+        result: items.reduce((a, b) => a + b.price_inr, 0),
+      },
       "",
       "",
       "",
@@ -293,16 +313,13 @@ export async function POST(req: NextRequest) {
     const marginPercent = marginStr ? parseFloat(marginStr) : 30;
 
     if (!file) {
-      return NextResponse.json(
-        { error: "No file provided" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
     if (!file.name.toLowerCase().endsWith(".pdf")) {
       return NextResponse.json(
         { error: "Only PDF files are accepted" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -314,8 +331,11 @@ export async function POST(req: NextRequest) {
 
     if (!items.length) {
       return NextResponse.json(
-        { error: "No items could be extracted from the PDF. Please ensure the PDF contains jewel price data." },
-        { status: 422 }
+        {
+          error:
+            "No items could be extracted from the PDF. Please ensure the PDF contains jewel price data.",
+        },
+        { status: 422 },
       );
     }
 
@@ -351,10 +371,8 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error("Price list convert error:", err);
-    const message = err instanceof Error ? err.message : "Failed to convert PDF";
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    const message =
+      err instanceof Error ? err.message : "Failed to convert PDF";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
