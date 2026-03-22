@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { authenticate, unauthorizedResponse } from "@/lib/auth-helpers";
 import * as ExcelJS from "exceljs";
 import { GoogleGenAI } from "@google/genai";
+import { PDFDocument, PDFName, PDFDict, PDFStream, PDFRawStream } from "pdf-lib";
 
 const INR_TO_NPR = 1.6015;
 
@@ -13,6 +14,80 @@ interface ExtractedItem {
   quantity: number;
   weight: string;
   price_inr: number;
+}
+
+/**
+ * Extract embedded JPEG/PNG images from a PDF using pdf-lib low-level API.
+ * Returns an array of image buffers in document order.
+ */
+async function extractImagesFromPDF(pdfBytes: Buffer): Promise<Buffer[]> {
+  const images: Buffer[] = [];
+
+  try {
+    const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+    const pages = pdfDoc.getPages();
+
+    for (const page of pages) {
+      const resources = page.node.get(PDFName.of("Resources"));
+      if (!(resources instanceof PDFDict)) continue;
+
+      const xObjectRef = resources.get(PDFName.of("XObject"));
+      if (!xObjectRef) continue;
+
+      const xObjects =
+        xObjectRef instanceof PDFDict
+          ? xObjectRef
+          : (pdfDoc.context.lookup(xObjectRef) as PDFDict | null);
+      if (!(xObjects instanceof PDFDict)) continue;
+
+      // Get all XObject entries sorted by name for consistent ordering
+      const entries = Array.from(xObjects.entries()).sort(([a], [b]) =>
+        a.toString().localeCompare(b.toString()),
+      );
+
+      for (const [, ref] of entries) {
+        const xObject = pdfDoc.context.lookup(ref);
+        if (!xObject) continue;
+
+        // Check if it's an Image XObject
+        let dict: PDFDict;
+        let streamBytes: Uint8Array;
+
+        if (xObject instanceof PDFRawStream) {
+          dict = xObject.dict;
+          streamBytes = xObject.contents;
+        } else if (xObject instanceof PDFStream) {
+          dict = xObject.dict;
+          streamBytes = (xObject as any).contents || (xObject as any).getContents?.();
+          if (!streamBytes) continue;
+        } else {
+          continue;
+        }
+
+        const subtype = dict.get(PDFName.of("Subtype"));
+        if (!subtype || subtype.toString() !== "/Image") continue;
+
+        // Check filter to determine image type
+        const filter = dict.get(PDFName.of("Filter"));
+        const filterStr = filter?.toString() || "";
+
+        if (filterStr.includes("DCTDecode")) {
+          // JPEG image - raw bytes are usable directly
+          images.push(Buffer.from(streamBytes));
+        } else if (filterStr.includes("FlateDecode")) {
+          // Could be PNG-like data, try to use it
+          // For FlateDecode images we'd need to decompress + reconstruct PNG
+          // Skip for now - most product photos are JPEG
+          continue;
+        }
+      }
+    }
+  } catch (err) {
+    console.error("PDF image extraction error:", err);
+    // Return empty array - graceful fallback
+  }
+
+  return images;
 }
 
 /**
@@ -80,14 +155,18 @@ Rules:
 }
 
 /**
- * Create a professional Excel workbook from extracted items with INR→NPR conversion.
+ * Create a professional Excel workbook from extracted items with images and INR→NPR conversion.
  */
 async function createExcel(
   items: ExtractedItem[],
+  images: Buffer[],
   marginPercent: number,
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet("Price List");
+
+  const IMAGE_ROW_HEIGHT = 100; // pixels for image rows
+  const IMAGE_COL_WIDTH = 18; // column B width for pictures
 
   // ── Style definitions ──
   const headerStyle: Partial<ExcelJS.Style> = {
@@ -119,7 +198,7 @@ async function createExcel(
   };
 
   // ── Title row ──
-  ws.mergeCells("A1:J1");
+  ws.mergeCells("A1:K1");
   const titleCell = ws.getCell("A1");
   titleCell.value = "Aurora Jewel Studio — Price List (NPR)";
   titleCell.font = {
@@ -132,7 +211,7 @@ async function createExcel(
   ws.getRow(1).height = 30;
 
   // ── Subtitle row ──
-  ws.mergeCells("A2:J2");
+  ws.mergeCells("A2:K2");
   const subtitleCell = ws.getCell("A2");
   subtitleCell.value = `Conversion Rate: 1 INR = ${INR_TO_NPR} NPR  |  Default Margin: ${marginPercent}%`;
   subtitleCell.font = {
@@ -144,9 +223,10 @@ async function createExcel(
   subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
   ws.getRow(2).height = 20;
 
-  // ── Headers (row 3) ──
+  // ── Headers (row 3) — now with Picture column ──
   const headers = [
     "S.N.",
+    "Picture",
     "Item Name",
     "Details / Specs",
     "Qty",
@@ -159,7 +239,7 @@ async function createExcel(
   ];
 
   const headerRow = ws.addRow(headers);
-  headerRow.eachCell((cell) => {
+  headerRow.eachCell((cell: ExcelJS.Cell) => {
     cell.style = headerStyle;
   });
   headerRow.height = 28;
@@ -167,56 +247,78 @@ async function createExcel(
   // ── Data rows (starting row 4) ──
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const excelRow = i + 4; // row 4 onwards (1=title, 2=subtitle, 3=header)
+    const excelRow = i + 4; // row 4 onwards
 
     const unitPriceINR =
       item.quantity > 0 ? item.price_inr / item.quantity : item.price_inr;
     const unitPriceNPR = unitPriceINR * INR_TO_NPR;
     const sellingPrice = unitPriceNPR * (1 + marginPercent / 100);
 
+    // Column layout: A=SN, B=Picture(blank), C=Name, D=Details, E=Qty, F=Weight,
+    //                G=TotalINR, H=UnitINR, I=UnitNPR, J=Margin, K=SellingNPR
     const row = ws.addRow([
       item.sn,
+      "", // Picture placeholder
       item.name,
       item.details,
       item.quantity,
       item.weight,
       item.price_inr,
-      // Formula-based for unit price so it stays dynamic
       {
-        formula: `IF(D${excelRow}>0,F${excelRow}/D${excelRow},F${excelRow})`,
+        formula: `IF(E${excelRow}>0,G${excelRow}/E${excelRow},G${excelRow})`,
         result: unitPriceINR,
       },
-      { formula: `G${excelRow}*${INR_TO_NPR}`, result: unitPriceNPR },
+      { formula: `H${excelRow}*${INR_TO_NPR}`, result: unitPriceNPR },
       marginPercent,
-      { formula: `H${excelRow}*(1+I${excelRow}/100)`, result: sellingPrice },
+      { formula: `I${excelRow}*(1+J${excelRow}/100)`, result: sellingPrice },
     ]);
 
-    row.eachCell((cell) => {
+    row.eachCell((cell: ExcelJS.Cell) => {
       cell.font = { name: "Calibri", size: 11 };
       cell.border = cellBorder;
       cell.alignment = { vertical: "middle" };
     });
 
+    // Set row height for images
+    row.height = IMAGE_ROW_HEIGHT;
+
     // Number formatting
     row.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
-    row.getCell(4).alignment = { horizontal: "center", vertical: "middle" };
     row.getCell(5).alignment = { horizontal: "center", vertical: "middle" };
-    row.getCell(6).numFmt = "#,##0.00";
+    row.getCell(6).alignment = { horizontal: "center", vertical: "middle" };
     row.getCell(7).numFmt = "#,##0.00";
     row.getCell(8).numFmt = "#,##0.00";
-    row.getCell(9).numFmt = "0";
-    row.getCell(9).alignment = { horizontal: "center", vertical: "middle" };
-    row.getCell(10).numFmt = "#,##0.00";
+    row.getCell(9).numFmt = "#,##0.00";
+    row.getCell(10).numFmt = "0";
+    row.getCell(10).alignment = { horizontal: "center", vertical: "middle" };
+    row.getCell(11).numFmt = "#,##0.00";
 
     // Alternate row shading
     if (i % 2 === 0) {
-      row.eachCell((cell) => {
+      row.eachCell((cell: ExcelJS.Cell) => {
         cell.fill = {
           type: "pattern",
           pattern: "solid",
           fgColor: { argb: "FFF5F5FF" },
         };
       });
+    }
+
+    // ── Embed image if available ──
+    if (i < images.length && images[i].length > 0) {
+      try {
+        const imageId = workbook.addImage({
+          buffer: new Uint8Array(images[i]) as any,
+          extension: "jpeg",
+        });
+        ws.addImage(imageId, {
+          tl: { col: 1.1, row: excelRow - 1 + 0.1 } as any,
+          br: { col: 1.9, row: excelRow - 1 + 0.9 } as any,
+        });
+      } catch (imgErr) {
+        console.error(`Failed to embed image for item ${i + 1}:`, imgErr);
+        // Skip image - data will still be in the row
+      }
     }
   }
 
@@ -225,24 +327,25 @@ async function createExcel(
     const lastDataRow = items.length + 3;
     const totalsRow = ws.addRow([
       "",
+      "",
       "TOTAL",
       "",
       {
-        formula: `SUM(D4:D${lastDataRow})`,
+        formula: `SUM(E4:E${lastDataRow})`,
         result: items.reduce((a, b) => a + b.quantity, 0),
       },
       "",
       {
-        formula: `SUM(F4:F${lastDataRow})`,
+        formula: `SUM(G4:G${lastDataRow})`,
         result: items.reduce((a, b) => a + b.price_inr, 0),
       },
       "",
       "",
       "",
-      { formula: `SUM(J4:J${lastDataRow})`, result: 0 },
+      { formula: `SUM(K4:K${lastDataRow})`, result: 0 },
     ]);
 
-    totalsRow.eachCell((cell) => {
+    totalsRow.eachCell((cell: ExcelJS.Cell) => {
       cell.font = { name: "Calibri", bold: true, size: 11 };
       cell.border = cellBorder;
       cell.fill = {
@@ -251,21 +354,22 @@ async function createExcel(
         fgColor: { argb: "FFE8E8FF" },
       };
     });
-    totalsRow.getCell(6).numFmt = "#,##0.00";
-    totalsRow.getCell(10).numFmt = "#,##0.00";
+    totalsRow.getCell(7).numFmt = "#,##0.00";
+    totalsRow.getCell(11).numFmt = "#,##0.00";
   }
 
   // ── Column widths ──
-  ws.getColumn(1).width = 6;
-  ws.getColumn(2).width = 28;
-  ws.getColumn(3).width = 35;
-  ws.getColumn(4).width = 8;
-  ws.getColumn(5).width = 12;
-  ws.getColumn(6).width = 18;
-  ws.getColumn(7).width = 18;
-  ws.getColumn(8).width = 18;
-  ws.getColumn(9).width = 12;
-  ws.getColumn(10).width = 20;
+  ws.getColumn(1).width = 6; // S.N.
+  ws.getColumn(2).width = IMAGE_COL_WIDTH; // Picture
+  ws.getColumn(3).width = 24; // Item Name
+  ws.getColumn(4).width = 32; // Details
+  ws.getColumn(5).width = 8; // Qty
+  ws.getColumn(6).width = 12; // Weight
+  ws.getColumn(7).width = 18; // Total Price INR
+  ws.getColumn(8).width = 16; // Unit Price INR
+  ws.getColumn(9).width = 16; // Unit Price NPR
+  ws.getColumn(10).width = 12; // Margin
+  ws.getColumn(11).width = 18; // Selling Price NPR
 
   // ── Freeze panes ──
   ws.views = [{ state: "frozen", ySplit: 3 }];
@@ -298,8 +402,11 @@ export async function POST(req: NextRequest) {
     const pdfBuffer = Buffer.from(await file.arrayBuffer());
     const pdfBase64 = pdfBuffer.toString("base64");
 
-    // Extract items using Vision AI
-    const items = await extractWithVision(pdfBase64);
+    // Extract items using Vision AI + images from PDF in parallel
+    const [items, images] = await Promise.all([
+      extractWithVision(pdfBase64),
+      extractImagesFromPDF(pdfBuffer),
+    ]);
 
     if (!items.length) {
       return NextResponse.json(
@@ -311,8 +418,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate Excel
-    const excelBuffer = await createExcel(items, marginPercent);
+    // Generate Excel with images
+    const excelBuffer = await createExcel(items, images, marginPercent);
 
     // Store PDF reference in database
     const pdfPath = `pricelists/${user.id}/${Date.now()}_${file.name}`;
