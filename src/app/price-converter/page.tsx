@@ -14,6 +14,7 @@ import {
   Sparkles,
   Percent,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase-client";
 
 const STEPS = [
@@ -24,6 +25,7 @@ const STEPS = [
 ];
 
 export default function PriceConverterPage() {
+  const { token } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [converting, setConverting] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
@@ -63,53 +65,72 @@ export default function PriceConverterPage() {
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `temp-uploads/${fileName}`;
 
+      // Set the session for the supabase client to authorize the upload
+      if (token) {
+        await supabase.auth.setSession({
+          access_token: token,
+          refresh_token: "", // not used by storage
+        });
+      }
+
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("price-lists")
         .upload(filePath, file);
 
-      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+      if (uploadError) {
+        console.error("Storage Upload Error:", uploadError);
+        // Fallback for smaller files: try direct upload if storage fails
+        if (file.size < 4 * 1024 * 1024) {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("margin", margin.toString());
+          const response = await pricelistAPI.convert(formData);
+          // ... (handle response same as below)
+          processResponse(response.data);
+          return;
+        }
+        throw new Error(`Upload failed: ${uploadError.message}. This might be due to a large file exceeding payload limits.`);
+      }
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("price-lists")
-        .getPublicUrl(filePath);
-
-      // 2. Call API with the URL
+      // 2. Call API with the filePath (Secure, no public URL needed)
       const formData = new FormData();
-      formData.append("file_url", publicUrl);
+      formData.append("file_path", filePath);
       formData.append("file_name", file.name);
       formData.append("margin", margin.toString());
 
       const response = await pricelistAPI.convert(formData);
-
-      clearInterval(stepInterval);
-
-      // Download the Excel file
-      const blob = new Blob([response.data], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file.name.replace(".pdf", "") + "_priced.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      setStatus("success");
+      processResponse(response.data);
     } catch (err: unknown) {
-      clearInterval(stepInterval);
-      const error = err as { response?: { data?: { error?: string } } };
-      setStatus("error");
-      setErrorMsg(
-        error.response?.data?.error ||
-          "Conversion failed. Please make sure the PDF contains jewel pricing data.",
-      );
+      handleError(err);
     } finally {
       setConverting(false);
-      setStepIndex(0);
+      clearInterval(stepInterval);
     }
+  };
+
+  const processResponse = (data: any) => {
+    const blob = new Blob([data], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (file?.name || "price_list").replace(".pdf", "") + "_priced.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setStatus("success");
+  };
+
+  const handleError = (err: any) => {
+    const error = err as { response?: { data?: { error?: string } } };
+    setStatus("error");
+    setErrorMsg(
+      error.response?.data?.error ||
+        err.message ||
+        "Conversion failed. Please try again or use a smaller PDF.",
+    );
   };
 
   return (

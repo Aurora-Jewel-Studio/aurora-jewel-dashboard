@@ -384,6 +384,7 @@ export async function POST(req: NextRequest) {
     if (!user) return unauthorizedResponse();
 
     const formData = await req.formData();
+    const filePath = formData.get("file_path") as string | null;
     const fileUrl = formData.get("file_url") as string | null;
     const fileName = (formData.get("file_name") as string | null) || "document.pdf";
     const marginStr = formData.get("margin") as string | null;
@@ -391,12 +392,25 @@ export async function POST(req: NextRequest) {
 
     let pdfBuffer: Buffer;
 
-    if (fileUrl) {
+    if (filePath) {
+      // Download directly from Storage using admin privileges (Best for private buckets)
+      const { data: downloadData, error: downloadError } = await supabaseAdmin.storage
+        .from("price-lists")
+        .download(filePath);
+
+      if (downloadError) {
+        return NextResponse.json(
+          { error: `Failed to download file from storage: ${downloadError.message}` },
+          { status: 400 },
+        );
+      }
+      pdfBuffer = Buffer.from(await downloadData.arrayBuffer());
+    } else if (fileUrl) {
       // Fetch the file from the provided URL (Storage path)
       const fileResp = await fetch(fileUrl);
       if (!fileResp.ok) {
         return NextResponse.json(
-          { error: `Failed to fetch file from storage: ${fileResp.statusText}` },
+          { error: `Failed to fetch file from URL: ${fileResp.statusText}` },
           { status: 400 },
         );
       }
