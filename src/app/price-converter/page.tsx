@@ -14,18 +14,15 @@ import {
   Sparkles,
   Percent,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabase-client";
 
 const STEPS = [
-  "Uploading PDF to secure storage...",
+  "Uploading PDF...",
   "Reading pages with Gemini AI...",
   "Extracting jewel data & images...",
   "Generating Excel with NPR pricing...",
 ];
 
 export default function PriceConverterPage() {
-  const { token } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [converting, setConverting] = useState(false);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
@@ -54,75 +51,44 @@ export default function PriceConverterPage() {
     setStatus("idle");
     setStepIndex(0);
 
-    // Animate through steps
     const stepInterval = setInterval(() => {
       setStepIndex((prev) => (prev < STEPS.length - 1 ? prev + 1 : prev));
-    }, 4500);
+    }, 3000);
 
     try {
-      // 1. Get a Signed Upload URL from our backend (Bypasses RLS issues)
-      const { data: uploadInfo } = await pricelistAPI.getUploadUrl(file.name);
-      const { uploadUrl, filePath } = uploadInfo;
-
-      // 2. Upload directly to Supabase via the signed URL (Bypasses Vercel 4.5MB payload limit)
-      const uploadResp = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": "application/pdf" },
-      });
-
-      if (!uploadResp.ok) {
-        // Fallback for smaller files if signed upload fails
-        if (file.size < 4 * 1024 * 1024) {
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("margin", margin.toString());
-          const directResponse = await pricelistAPI.convert(formData);
-          processResponse(directResponse.data);
-          return;
-        }
-        throw new Error("Secure storage upload failed. File might be too large or storage is unavailable.");
-      }
-
-      // 3. Call conversion API with the filePath (Backend and Storage are now synced)
       const formData = new FormData();
-      formData.append("file_path", filePath);
-      formData.append("file_name", file.name);
+      formData.append("file", file);
       formData.append("margin", margin.toString());
 
       const response = await pricelistAPI.convert(formData);
-      processResponse(response.data);
+
+      clearInterval(stepInterval);
+
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name.replace(".pdf", "") + "_priced.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setStatus("success");
     } catch (err: unknown) {
-      handleError(err);
+      clearInterval(stepInterval);
+      const error = err as { response?: { data?: { error?: string } } };
+      setStatus("error");
+      setErrorMsg(
+        error.response?.data?.error ||
+          "Conversion failed. Please make sure the PDF contains jewel pricing data.",
+      );
     } finally {
       setConverting(false);
-      clearInterval(stepInterval);
+      setStepIndex(0);
     }
-  };
-
-  const processResponse = (data: any) => {
-    const blob = new Blob([data], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = (file?.name || "price_list").replace(".pdf", "") + "_priced.xlsx";
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-    setStatus("success");
-  };
-
-  const handleError = (err: any) => {
-    const error = err as { response?: { data?: { error?: string } } };
-    setStatus("error");
-    setErrorMsg(
-      error.response?.data?.error ||
-        err.message ||
-        "Conversion failed. Please try again or use a smaller PDF.",
-    );
   };
 
   return (
@@ -191,27 +157,15 @@ export default function PriceConverterPage() {
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Margin
             </label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={margin}
-              onChange={(e) => setMargin(parseInt(e.target.value))}
-              className="w-32 accent-indigo-600"
-            />
             <input
               type="number"
-              min="0"
-              max="200"
               value={margin}
-              onChange={(e) => setMargin(parseInt(e.target.value) || 0)}
-              className="w-16 px-2 py-1.5 text-sm text-center rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white font-semibold focus:ring-2 focus:ring-indigo-500 outline-none"
+              onChange={(e) => setMargin(Number(e.target.value))}
+              min={0}
+              max={200}
+              className="w-20 px-2 py-1 text-sm border border-slate-200 dark:border-white/10 rounded-lg bg-slate-50 dark:bg-[#0a0b1a] text-slate-900 dark:text-white text-center"
             />
-            <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">
-              %
-            </span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">%</span>
           </div>
         </div>
 
@@ -219,7 +173,7 @@ export default function PriceConverterPage() {
         <button
           onClick={handleConvert}
           disabled={!file || converting}
-          className="w-full mt-4 py-4 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
+          className="mt-4 w-full py-3 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
         >
           {converting ? (
             <>
@@ -236,31 +190,40 @@ export default function PriceConverterPage() {
 
         {/* Status Messages */}
         {status === "success" && (
-          <div className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
-            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-            <p className="text-sm text-emerald-700 dark:text-emerald-400">
-              Excel file downloaded! INR prices have been converted to NPR with{" "}
-              {margin}% margin applied.
-            </p>
+          <div className="mt-4 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium text-emerald-800 dark:text-emerald-300">
+                Conversion complete!
+              </p>
+              <p className="text-sm text-emerald-700 dark:text-emerald-400 mt-0.5">
+                Your Excel file has been downloaded. Check your downloads folder.
+              </p>
+            </div>
           </div>
         )}
 
         {status === "error" && (
-          <div className="mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20">
-            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
-            <p className="text-sm text-rose-700 dark:text-rose-400">
-              {errorMsg}
-            </p>
+          <div className="mt-4 p-4 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium text-red-800 dark:text-red-300">
+                Conversion failed
+              </p>
+              <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">
+                {errorMsg}
+              </p>
+            </div>
           </div>
         )}
 
-        {/* Info */}
-        <div className="mt-8 bg-white dark:bg-[#12142a]/80 rounded-2xl border border-slate-200 dark:border-white/6 p-6 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+        {/* How it works */}
+        <div className="mt-8 p-5 rounded-xl bg-slate-50 dark:bg-[#12142a] border border-slate-200 dark:border-white/10">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-500" />
             How it works
           </h3>
-          <div className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
+          <div className="space-y-2.5 text-sm text-slate-600 dark:text-slate-400">
             <div className="flex items-start gap-3">
               <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
                 1
@@ -288,7 +251,6 @@ export default function PriceConverterPage() {
           </div>
         </div>
 
-        {/* Conversion Rate Info */}
         <div className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-400 dark:text-slate-500">
           <span>1 INR = 1.6015 NPR</span>
         </div>

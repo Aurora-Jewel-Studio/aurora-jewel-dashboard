@@ -63,7 +63,6 @@ export const pricelistAPI = {
       responseType: "blob",
     });
   },
-  getUploadUrl: (fileName: string) => api.post("/pricelist/upload-url", { fileName }),
   list: () => api.get("/pricelist"),
 };
 
