@@ -60,39 +60,31 @@ export default function PriceConverterPage() {
     }, 4500);
 
     try {
-      // 1. Upload to Supabase Storage first (Bypasses Vercel 4.5MB payload limit)
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `temp-uploads/${fileName}`;
+      // 1. Get a Signed Upload URL from our backend (Bypasses RLS issues)
+      const { data: uploadInfo } = await pricelistAPI.getUploadUrl(file.name);
+      const { uploadUrl, filePath } = uploadInfo;
 
-      // Set the session for the supabase client to authorize the upload
-      if (token) {
-        await supabase.auth.setSession({
-          access_token: token,
-          refresh_token: "", // not used by storage
-        });
-      }
+      // 2. Upload directly to Supabase via the signed URL (Bypasses Vercel 4.5MB payload limit)
+      const uploadResp = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": "application/pdf" },
+      });
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("price-lists")
-        .upload(filePath, file);
-
-      if (uploadError) {
-        console.error("Storage Upload Error:", uploadError);
-        // Fallback for smaller files: try direct upload if storage fails
+      if (!uploadResp.ok) {
+        // Fallback for smaller files if signed upload fails
         if (file.size < 4 * 1024 * 1024) {
           const formData = new FormData();
           formData.append("file", file);
           formData.append("margin", margin.toString());
-          const response = await pricelistAPI.convert(formData);
-          // ... (handle response same as below)
-          processResponse(response.data);
+          const directResponse = await pricelistAPI.convert(formData);
+          processResponse(directResponse.data);
           return;
         }
-        throw new Error(`Upload failed: ${uploadError.message}. This might be due to a large file exceeding payload limits.`);
+        throw new Error("Secure storage upload failed. File might be too large or storage is unavailable.");
       }
 
-      // 2. Call API with the filePath (Secure, no public URL needed)
+      // 3. Call conversion API with the filePath (Backend and Storage are now synced)
       const formData = new FormData();
       formData.append("file_path", filePath);
       formData.append("file_name", file.name);
