@@ -5,6 +5,8 @@ import * as ExcelJS from "exceljs";
 import { GoogleGenAI } from "@google/genai";
 import { PDFDocument, PDFName, PDFDict, PDFRawStream, PDFStream } from "pdf-lib";
 
+export const maxDuration = 60; // Allow function to run up to 60s for Gemini API
+
 const INR_TO_NPR = 1.6015;
 
 interface ExtractedItem {
