@@ -6,7 +6,6 @@ import {
   BarChart3,
   TrendingUp,
   Users,
-  Gem,
   Palette,
   ArrowUpRight,
 } from "lucide-react";
@@ -151,7 +150,11 @@ export default function AnalyticsPage() {
           {
             label: "Price Lists",
             value: data?.price_lists_count || 0,
-            icon: <Gem className="w-5 h-5" />,
+            icon: (
+              <div className="w-6 h-6 rounded-full overflow-hidden border border-amber-400/20 bg-white">
+                <img src="/Logo green BG.svg" alt="" className="w-full h-full object-cover" />
+              </div>
+            ),
             color: "text-amber-400",
             bg: "bg-amber-500/10",
           },

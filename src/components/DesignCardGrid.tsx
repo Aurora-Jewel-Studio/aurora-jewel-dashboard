@@ -37,8 +37,7 @@ interface DesignCardGridProps {
   isArchived?: boolean;
 }
 
-const STAGES = [
-  { id: "all", label: "All", dot: "bg-slate-400" },
+const STAGE_OPTIONS = [
   { id: "reference", label: "Reference", dot: "bg-blue-500" },
   { id: "cad_in_progress", label: "CAD WIP", dot: "bg-amber-500" },
   { id: "cad_uploaded", label: "CAD Done", dot: "bg-purple-500" },
@@ -91,7 +90,7 @@ function StageDropdown({
         <>
           <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
           <div className="absolute right-0 top-full mt-1 z-50 w-44 bg-white dark:bg-[#12142a] rounded-xl border border-slate-200 dark:border-white/10 shadow-xl py-1 overflow-hidden">
-            {STAGES.filter((s) => s.id !== "all").map((stage) => (
+            {STAGE_OPTIONS.map((stage) => (
               <button
                 key={stage.id}
                 onClick={(e) => {
@@ -243,7 +242,6 @@ export default function DesignCardGrid({
   userRole,
   isArchived,
 }: DesignCardGridProps) {
-  const [activeFilter, setActiveFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
   const isAdmin = userRole === "owner" || userRole === "superadmin";
@@ -251,19 +249,12 @@ export default function DesignCardGrid({
   // Filter and sort cards
   const filteredCards = cards
     .filter((card) => {
-      const matchesStage = activeFilter === "all" || card.stage === activeFilter;
-      const matchesSearch =
+      return (
         !searchQuery ||
-        card.title.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesStage && matchesSearch;
+        card.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
     })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-  // Count cards per stage
-  const stageCounts = STAGES.map((s) => ({
-    ...s,
-    count: s.id === "all" ? cards.length : cards.filter((c) => c.stage === s.id).length,
-  }));
 
   return (
     <div>
@@ -278,39 +269,6 @@ export default function DesignCardGrid({
           className="w-full pl-10 pr-4 py-3 text-sm bg-white dark:bg-[#0f1120] border border-slate-200 dark:border-white/10 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
         />
       </div>
-
-      {/* Stage Filter Bar (admins see all, designers see simplified) */}
-      {isAdmin && (
-        <div className="flex gap-2 mb-5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-          {stageCounts.map((stage) => (
-            <button
-              key={stage.id}
-              onClick={() => setActiveFilter(stage.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
-                activeFilter === stage.id
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
-                  : "bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10"
-              }`}
-            >
-              <div
-                className={`w-1.5 h-1.5 rounded-full ${
-                  activeFilter === stage.id ? "bg-white" : stage.dot
-                }`}
-              />
-              {stage.label}
-              <span
-                className={`ml-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
-                  activeFilter === stage.id
-                    ? "bg-white/20 text-white"
-                    : "bg-slate-200 dark:bg-white/10 text-slate-500 dark:text-slate-400"
-                }`}
-              >
-                {stage.count}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Card Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-3">

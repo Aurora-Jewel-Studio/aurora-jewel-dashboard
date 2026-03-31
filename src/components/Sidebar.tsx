@@ -12,7 +12,6 @@ import {
   Instagram,
   BarChart3,
   LogOut,
-  Gem,
   Menu,
   X,
   Users,
@@ -30,7 +29,7 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   {
-    name: "Price Converter",
+    name: "Financial Automation",
     href: "/price-converter",
     icon: FileSpreadsheet,
     roles: ["owner", "superadmin"],
@@ -79,8 +78,12 @@ const SidebarContent = ({
   <>
     {/* Logo */}
     <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-200 dark:border-white/6">
-      <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/20">
-        <Gem className="w-5 h-5 text-white" />
+      <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 dark:border-white/10 shadow-sm flex items-center justify-center bg-white">
+        <img 
+          src="/Logo green BG.svg" 
+          alt="Aurora Jewel Logo" 
+          className="w-full h-full object-cover"
+        />
       </div>
       <div>
         <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
@@ -210,7 +213,13 @@ export default function Sidebar() {
       {/* Minimal Mobile Top Header */}
       <div className="fixed top-0 left-0 right-0 h-[60px] bg-white/90 dark:bg-[#080a16]/90 backdrop-blur-md border-b border-slate-200 dark:border-white/6 z-40 lg:hidden flex items-center justify-center px-4 shadow-sm">
         <div className="flex items-center gap-2">
-          <Gem className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          <div className="w-7 h-7 rounded-full overflow-hidden border border-slate-200 dark:border-white/10 bg-white">
+            <img 
+              src="/Logo green BG.svg" 
+              alt="Logo" 
+              className="w-full h-full object-cover"
+            />
+          </div>
           <h1 className="text-[15px] font-bold text-slate-900 dark:text-white tracking-tight">
             Aurora Jewel
           </h1>

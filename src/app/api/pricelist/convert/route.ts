@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { authenticate, unauthorizedResponse } from "@/lib/auth-helpers";
 import * as ExcelJS from "exceljs";
-import { GoogleGenAI } from "@google/genai";
 import { PDFDocument, PDFName, PDFDict, PDFRawStream, PDFStream } from "pdf-lib";
 
 export const maxDuration = 60; // Allow function to run up to 60s for Gemini API
@@ -79,68 +78,7 @@ async function extractImagesFromPDF(pdfBytes: Buffer): Promise<Buffer[]> {
   return images;
 }
 
-/**
- * Send PDF to Gemini Vision API for structured extraction.
- */
-async function extractWithVision(pdfBase64: string): Promise<ExtractedItem[]> {
-  const apiKey = process.env.GEMINI_API;
-  if (!apiKey) {
-    throw new Error("GEMINI_API key is not configured");
-  }
 
-  const ai = new GoogleGenAI({ apiKey });
-
-  const prompt = `You are a jewelry price list OCR expert. Extract ALL items from this PDF price list into a structured JSON array.
-
-For each item, extract:
-- "sn": serial number (integer)
-- "name": item name/title
-- "details": materials, stones, and specifications
-- "quantity": total quantity (integer, default 1)
-- "weight": weight string
-- "price_inr": total price in Indian Rupees (number only)
-
-Return a plain JSON array of objects.
-Rules:
-- Include every item row.
-- If no items, return [].
-- Strictly return valid JSON.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: [
-        { text: prompt },
-        {
-          inlineData: {
-            mimeType: "application/pdf",
-            data: pdfBase64,
-          },
-        },
-      ],
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
-
-    const content = response.text || "[]";
-    const items: ExtractedItem[] = JSON.parse(content);
-    return items.map((item, idx) => ({
-      sn: item.sn || idx + 1,
-      name: item.name || "Unknown Item",
-      details: item.details || "",
-      quantity: item.quantity || 1,
-      weight: item.weight || "",
-      price_inr: typeof item.price_inr === "number" ? item.price_inr : 0,
-    }));
-  } catch (err: any) {
-    console.error("Gemini SDK Error:", err);
-    if (err.message && err.message.includes("JSON")) {
-      throw new Error("AI returned invalid JSON. Please try again.");
-    }
-    throw new Error(`Gemini Error: ${err.message || "Failed to extract data"}`);
-  }
-}
 
 /**
  * Create a professional Excel workbook with images and INR→NPR conversion.
@@ -295,22 +233,25 @@ export async function POST(req: NextRequest) {
     const marginStr = formData.get("margin") as string | null;
     const marginPercent = marginStr ? parseFloat(marginStr) : 30;
 
+    const itemsJson = formData.get("items") as string | null;
+
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+
+    if (!itemsJson) {
+      return NextResponse.json({ error: "No extracted items provided" }, { status: 400 });
     }
 
     if (!file.name.toLowerCase().endsWith(".pdf")) {
       return NextResponse.json({ error: "Only PDF files are accepted" }, { status: 400 });
     }
 
+    const items: ExtractedItem[] = JSON.parse(itemsJson);
     const pdfBuffer = Buffer.from(await file.arrayBuffer());
-    const pdfBase64 = pdfBuffer.toString("base64");
 
-    // Extract items + images in parallel
-    const [items, images] = await Promise.all([
-      extractWithVision(pdfBase64),
-      extractImagesFromPDF(pdfBuffer),
-    ]);
+    // Extract images using pdf-lib
+    const images = await extractImagesFromPDF(pdfBuffer);
 
     if (!items.length) {
       return NextResponse.json(

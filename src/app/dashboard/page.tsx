@@ -11,7 +11,6 @@ import {
   FileSpreadsheet,
   TrendingUp,
   Instagram,
-  Gem,
   Upload,
   Clock,
   CheckCircle2,
@@ -124,7 +123,11 @@ function DesignerDashboard({ userName }: { userName: string }) {
               title="Completed"
               value={stats?.completed || 0}
               subtitle="Product finished"
-              icon={<Gem className="w-6 h-6 text-white" />}
+              icon={
+                <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 bg-white">
+                  <img src="/Logo green BG.svg" alt="" className="w-full h-full object-cover" />
+                </div>
+              }
               gradient="linear-to-r from-pink-500 to-rose-600"
             />
           </div>
@@ -347,7 +350,9 @@ function AnalyticsDashboard({ userName }: { userName: string }) {
             {/* Most Asked Products */}
             <div className="bg-white dark:bg-[#12142a]/80 rounded-2xl border border-slate-200 dark:border-white/6 p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                <Gem className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
+                <div className="w-6 h-6 rounded-full overflow-hidden border border-slate-200 dark:border-white/10 bg-white">
+                  <img src="/Logo green BG.svg" alt="" className="w-full h-full object-cover" />
+                </div>
                 Most Asked Products
               </h2>
               {data?.most_asked_products &&

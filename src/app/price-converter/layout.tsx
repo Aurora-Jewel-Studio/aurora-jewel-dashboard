@@ -42,7 +42,7 @@ function PriceConverterGuard({ children }: { children: React.ReactNode }) {
                   Access Restricted
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-                  The Price Converter is only available to Owners and
+                  Financial Automation is only available to Owners and
                   Superadmins.
                 </p>
               </div>

@@ -14,6 +14,7 @@ import {
   Sparkles,
   Percent,
 } from "lucide-react";
+import { GoogleGenAI } from "@google/genai";
 
 const STEPS = [
   "Uploading PDF...",
@@ -21,6 +22,85 @@ const STEPS = [
   "Extracting jewel data & images...",
   "Generating Excel with NPR pricing...",
 ];
+
+interface ExtractedItem {
+  sn: number;
+  name: string;
+  details: string;
+  quantity: number;
+  weight: string;
+  price_inr: number;
+}
+
+// Client-side AI extraction
+async function extractWithVision(file: File): Promise<ExtractedItem[]> {
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API;
+  if (!apiKey) throw new Error("NEXT_PUBLIC_GEMINI_API key is not configured");
+
+  // Read file as Base64
+  const base64Data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1]); // remove data:application/pdf;base64,
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  const prompt = `You are a jewelry price list OCR expert. Extract ALL items from this PDF price list into a structured JSON array.
+
+For each item, extract:
+- "sn": serial number (integer)
+- "name": item name/title
+- "details": materials, stones, and specifications
+- "quantity": total quantity (integer, default 1)
+- "weight": weight string
+- "price_inr": total price in Indian Rupees (number only)
+
+Return a plain JSON array of objects.
+Rules:
+- Include every item row.
+- If no items, return [].
+- Strictly return valid JSON.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [
+        { text: prompt },
+        {
+          inlineData: {
+            mimeType: "application/pdf",
+            data: base64Data,
+          },
+        },
+      ],
+      config: {
+        responseMimeType: "application/json",
+      },
+    });
+
+    const content = response.text || "[]";
+    const items: ExtractedItem[] = JSON.parse(content);
+    return items.map((item, idx) => ({
+      sn: item.sn || idx + 1,
+      name: item.name || "Unknown Item",
+      details: item.details || "",
+      quantity: item.quantity || 1,
+      weight: item.weight || "",
+      price_inr: typeof item.price_inr === "number" ? item.price_inr : 0,
+    }));
+  } catch (err: any) {
+    console.error("Gemini SDK Error:", err);
+    if (err.message && err.message.includes("JSON")) {
+      throw new Error("AI returned invalid JSON. Please try again.");
+    }
+    throw new Error(`Gemini Error: ${err.message || "Failed to extract data"}`);
+  }
+}
 
 export default function PriceConverterPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -53,11 +133,20 @@ export default function PriceConverterPage() {
 
     const stepInterval = setInterval(() => {
       setStepIndex((prev) => (prev < STEPS.length - 1 ? prev + 1 : prev));
-    }, 3000);
+    }, 4500); // Increased step time since AI takes longer
 
     try {
+      // 1. Extract JSON client-side (bypasses Vercel timeout)
+      const extractedItems = await extractWithVision(file);
+      
+      if (!extractedItems.length) {
+        throw new Error("No items could be extracted from the PDF. Please ensure the PDF contains jewel price data.");
+      }
+
+      // 2. Send JSON and PDF to backend for Excel generation
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("items", JSON.stringify(extractedItems));
       formData.append("margin", margin.toString());
 
       const response = await pricelistAPI.convert(formData);
@@ -79,11 +168,12 @@ export default function PriceConverterPage() {
       setStatus("success");
     } catch (err: unknown) {
       clearInterval(stepInterval);
-      const error = err as { response?: { data?: { error?: string } } };
+      const error = err as { response?: { data?: { error?: string } }; message?: string };
       setStatus("error");
       setErrorMsg(
         error.response?.data?.error ||
-          "Conversion failed. Please make sure the PDF contains jewel pricing data.",
+        error.message ||
+        "Conversion failed. Please try again or use a smaller PDF.",
       );
     } finally {
       setConverting(false);
@@ -96,11 +186,11 @@ export default function PriceConverterPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
           <FileSpreadsheet className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
-          Price List Converter
+          Financial Automation
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-          AI-powered OCR — Upload a jewel PDF and get NPR pricing in Excel
+          AI-powered OCR — Upload a jewel PDF and automate NPR pricing in Excel
         </p>
       </div>
 

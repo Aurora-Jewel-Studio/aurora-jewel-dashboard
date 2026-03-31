@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { pipelinesAPI, designCardsAPI, authAPI } from "@/lib/api";
+import { pipelinesAPI, designCardsAPI, authAPI, commentsAPI } from "@/lib/api";
 import DesignCardGrid, { DesignCard } from "@/components/DesignCardGrid";
 import DesignCardModal from "@/components/DesignCardModal";
 import { useParams, useRouter } from "next/navigation";
@@ -16,6 +16,7 @@ import {
   Archive,
   Layers,
   Trash2,
+  FileSpreadsheet,
 } from "lucide-react";
 import type { Point, Area } from "react-easy-crop";
 
@@ -112,6 +113,7 @@ export default function PipelineDetailPage() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   const [isCropping, setIsCropping] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const onCropComplete = useCallback((_croppedArea: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels);
@@ -265,6 +267,155 @@ export default function PipelineDetailPage() {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (cards.length === 0) return;
+    setExporting(true);
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet(pipeline?.name || "Design Pipeline");
+
+      const IMAGE_ROW_HEIGHT = 150; // 150 points is ~200 pixels
+
+      // Title
+      ws.mergeCells("A1:F1");
+      const titleCell = ws.getCell("A1");
+      titleCell.value = `${pipeline?.name || "Pipeline"} — Design Export`;
+      titleCell.font = { name: "Calibri", bold: true, size: 14, color: { argb: "FF1a1a2e" } };
+      titleCell.alignment = { horizontal: "center", vertical: "middle" };
+      ws.getRow(1).height = 30;
+
+      // Headers
+      const headers = ["S.N.", "Reference Image", "Quantity", "Description / Caption", "Final Design", "Comments"];
+      const headerRow = ws.addRow(headers);
+      const headerStyle: any = {
+        font: { name: "Calibri", bold: true, size: 11, color: { argb: "FFFFFFFF" } },
+        fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FF1a1a2e" } },
+        alignment: { horizontal: "center", vertical: "middle", wrapText: true },
+        border: { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } },
+      };
+      headerRow.eachCell((cell: any) => { cell.style = headerStyle; });
+      headerRow.height = 28;
+
+      // Column widths (1 char ≈ 7.2px; 25 chars ≈ 180px)
+      ws.getColumn(1).width = 6;   // S.N.
+      ws.getColumn(2).width = 25;  // Reference Image
+      ws.getColumn(3).width = 10;  // Quantity
+      ws.getColumn(4).width = 35;  // Description
+      ws.getColumn(5).width = 25;  // Final Design
+      ws.getColumn(6).width = 40;  // Comments
+
+      const cellBorder: any = {
+        top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" },
+      };
+
+      // Sort cards by created_at descending
+      const sortedCards = [...cards].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      for (let i = 0; i < sortedCards.length; i++) {
+        const card = sortedCards[i];
+        const excelRow = i + 3; // 1-indexed, row 1 = title, row 2 = headers
+
+        // Fetch comments for this card
+        let commentText = "";
+        try {
+          const commentsRes = await commentsAPI.list(card.id);
+          const allComments: { comment_text: string; user: { name: string }; created_at: string }[] = commentsRes.data.comments || [];
+          if (allComments.length > 0) {
+            commentText = allComments
+              .map((c) => {
+                const cleanText = c.comment_text.replace(/^\[(REF|CAD|FINAL)\]\s*/, "");
+                return `${c.user.name}: ${cleanText}`;
+              })
+              .join("\n");
+          }
+        } catch (err) {
+          console.error("Failed to fetch comments for card:", card.id, err);
+        }
+
+        const row = ws.addRow([
+          i + 1,
+          "", // placeholder for reference image
+          card.quantity || 1,
+          card.description || "",
+          "", // placeholder for final design image
+          commentText,
+        ]);
+
+        row.eachCell((cell: any) => {
+          cell.font = { name: "Calibri", size: 11 };
+          cell.border = cellBorder;
+          cell.alignment = { vertical: "middle", wrapText: true };
+        });
+        row.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+        row.getCell(3).alignment = { horizontal: "center", vertical: "middle" };
+        row.height = IMAGE_ROW_HEIGHT;
+
+        if (i % 2 === 0) {
+          row.eachCell((cell: any) => {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5FF" } };
+          });
+        }
+
+        // Embed reference image — perfectly sized to 144x180 (4:5 ratio)
+        if (card.reference_image_url) {
+          try {
+            const imgResp = await fetch(card.reference_image_url);
+            const imgBlob = await imgResp.blob();
+            const imgBuffer = await imgBlob.arrayBuffer();
+            const ext = card.reference_image_url.includes(".png") ? "png" : "jpeg";
+            const imageId = workbook.addImage({ buffer: imgBuffer, extension: ext });
+            ws.addImage(imageId, {
+              tl: { col: 1.1, row: excelRow - 1 + 0.1 } as any,
+              ext: { width: 144, height: 180 },
+            });
+          } catch (imgErr) {
+            console.error("Failed to embed reference image:", imgErr);
+          }
+        }
+
+        // Embed final design image — perfectly sized to 144x180 (4:5 ratio)
+        if (card.final_design_url) {
+          try {
+            const imgResp = await fetch(card.final_design_url);
+            const imgBlob = await imgResp.blob();
+            const imgBuffer = await imgBlob.arrayBuffer();
+            const ext = card.final_design_url.includes(".png") ? "png" : "jpeg";
+            const imageId = workbook.addImage({ buffer: imgBuffer, extension: ext });
+            ws.addImage(imageId, {
+              tl: { col: 4.1, row: excelRow - 1 + 0.1 } as any,
+              ext: { width: 144, height: 180 },
+            });
+          } catch (imgErr) {
+            console.error("Failed to embed final design image:", imgErr);
+          }
+        }
+      }
+
+      ws.views = [{ state: "frozen", ySplit: 2 }];
+
+      const buf = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${pipeline?.name || "pipeline"}_designs.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("Failed to export. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -313,21 +464,21 @@ export default function PipelineDetailPage() {
 
       {/* Admin actions (desktop) */}
       {canCreate && (
-        <div className="hidden sm:flex gap-2 mb-6 ml-12">
+        <div className="hidden sm:flex gap-3 mb-6 ml-12">
           {isArchived ? (
             <>
               <button
                 onClick={handleUnarchive}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-400 hover:bg-indigo-100 transition"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-indigo-300 bg-indigo-50 text-sm font-semibold text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition shadow-sm"
               >
-                <Archive className="w-3.5 h-3.5" />
+                <Archive className="w-4 h-4" />
                 Unarchive
               </button>
               <button
                 onClick={handleDelete}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 text-xs text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-400 hover:bg-rose-100 transition"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-rose-300 bg-rose-50 text-sm font-semibold text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition shadow-sm"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
                 Delete
               </button>
             </>
@@ -335,16 +486,24 @@ export default function PipelineDetailPage() {
             <>
               <button
                 onClick={handleArchive}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 transition"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-white/15 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 transition shadow-sm"
               >
-                <Archive className="w-3.5 h-3.5" />
+                <Archive className="w-4 h-4" />
                 Archive
               </button>
               <button
-                onClick={() => setShowCreate(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 transition shadow-sm"
+                onClick={() => handleExportExcel()}
+                disabled={cards.length === 0 || exporting}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-emerald-300 bg-emerald-50 text-sm font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
               >
-                <Plus className="w-3.5 h-3.5" />
+                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+                {exporting ? "Exporting..." : "Export Excel"}
+              </button>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/25"
+              >
+                <Plus className="w-4 h-4" />
                 Add Design
               </button>
             </>
