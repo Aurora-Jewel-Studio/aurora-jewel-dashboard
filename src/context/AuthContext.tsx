@@ -12,6 +12,7 @@ import { authAPI } from "@/lib/api";
 export interface User {
   id: string;
   name: string;
+  email: string;
   role: "owner" | "staff" | "designer" | "superadmin";
 }
 

@@ -16,6 +16,7 @@ import {
   X,
   Users,
   Settings,
+  DollarSign,
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import { useState } from "react";
@@ -51,6 +52,12 @@ const navigation: NavItem[] = [
     href: "/analytics",
     icon: BarChart3,
     roles: ["owner", "staff", "superadmin"],
+  },
+  {
+    name: "Finance",
+    href: "/finance",
+    icon: DollarSign,
+    roles: ["designer", "superadmin"],
   },
   {
     name: "User Management",
