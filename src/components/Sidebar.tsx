@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   Users,
+  Settings,
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import { useState } from "react";
@@ -38,7 +39,6 @@ const navigation: NavItem[] = [
     name: "Design Hub",
     href: "/pipelines",
     icon: Layers,
-    roles: ["owner", "superadmin", "staff", "designer"],
   },
   {
     name: "Instagram Leads",
@@ -57,6 +57,11 @@ const navigation: NavItem[] = [
     href: "/dashboard/users",
     icon: Users,
     roles: ["superadmin"],
+  },
+  {
+    name: "Settings",
+    href: "/dashboard/settings",
+    icon: Settings,
   },
 ];
 

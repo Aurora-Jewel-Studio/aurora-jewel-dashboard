@@ -68,12 +68,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Card not found" }, { status: 404 });
     }
 
-    if (
-      !requireRole(user, "owner", "superadmin") &&
-      existingCard.assigned_designer_id !== user.id
-    ) {
-      return forbiddenResponse(["owner", "superadmin", "assigned designer"]);
-    }
+    // Any authenticated user can access this action now
 
     const updates = await req.json();
 

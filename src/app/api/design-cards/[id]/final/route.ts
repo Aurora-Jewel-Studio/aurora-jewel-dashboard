@@ -31,12 +31,7 @@ export async function POST(
       );
     }
 
-    if (
-      !requireRole(user, "owner", "superadmin") &&
-      card.assigned_designer_id !== user.id
-    ) {
-      return forbiddenResponse(["owner", "superadmin", "assigned designer"]);
-    }
+    // Any authenticated user can access this action now
 
     const formData = await req.formData();
     const finalImage = formData.get("final_design") as File | null;

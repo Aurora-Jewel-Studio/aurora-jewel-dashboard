@@ -44,8 +44,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await authenticate(req);
     if (!user) return unauthorizedResponse();
-    if (!requireRole(user, "owner", "superadmin"))
-      return forbiddenResponse(["owner", "superadmin"]);
+    // Any authenticated user can access this action now
 
     const { name, description } = await req.json();
 

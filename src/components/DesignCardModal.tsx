@@ -113,7 +113,7 @@ export default function DesignCardModal({ card, onClose, onCardUpdate, isArchive
   const [stageDropdownOpen, setStageDropdownOpen] = useState(false);
 
   // Editable fields state
-  const canEditDetails = !isArchived && (user?.role === "owner" || user?.role === "superadmin");
+  const canEditDetails = !isArchived; // All roles can edit details now if not archived
   const [editQuantity, setEditQuantity] = useState(card.quantity || 1);
   const [editDescription, setEditDescription] = useState(card.description || "");
   const [savingDetails, setSavingDetails] = useState(false);
@@ -182,7 +182,7 @@ export default function DesignCardModal({ card, onClose, onCardUpdate, isArchive
   };
 
 
-  const isAdmin = user?.role === "owner" || user?.role === "superadmin";
+  const isAdmin = true; // All roles can manage card stages and uploads now
 
   const handleCadUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

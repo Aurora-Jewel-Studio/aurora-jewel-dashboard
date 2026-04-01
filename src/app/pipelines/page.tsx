@@ -41,8 +41,7 @@ export default function PipelinesPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: "", description: "" });
 
-  const canCreate =
-    user?.role === "owner" || user?.role === "superadmin";
+  const canCreate = !!user; // All authenticated users can create pipelines now
 
   const fetchPipelines = async () => {
     try {

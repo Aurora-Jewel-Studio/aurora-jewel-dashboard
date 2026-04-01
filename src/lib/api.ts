@@ -41,6 +41,8 @@ export const authAPI = {
   listUsers: () => api.get("/auth/users"),
   deleteUser: (id: string) => api.delete(`/auth/users/${id}`),
   me: () => api.get("/auth/me"),
+  updateMe: (data: { name?: string; email?: string; password?: string }) =>
+    api.patch("/auth/me", data),
 };
 
 

@@ -65,8 +65,7 @@ export async function PATCH(
   try {
     const user = await authenticate(req);
     if (!user) return unauthorizedResponse();
-    if (!requireRole(user, "owner", "superadmin"))
-      return forbiddenResponse(["owner", "superadmin"]);
+    // Any authenticated user can access this action now
 
     const { id } = await params;
     const updates = await req.json();
@@ -100,8 +99,7 @@ export async function DELETE(
   try {
     const user = await authenticate(req);
     if (!user) return unauthorizedResponse();
-    if (!requireRole(user, "owner", "superadmin"))
-      return forbiddenResponse(["owner", "superadmin"]);
+    // Any authenticated user can access this action now
 
     const { id } = await params;
 

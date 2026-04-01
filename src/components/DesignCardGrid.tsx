@@ -244,7 +244,7 @@ export default function DesignCardGrid({
 }: DesignCardGridProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
-  const isAdmin = userRole === "owner" || userRole === "superadmin";
+  const isAdmin = true; // All roles can change stages now
 
   // Filter and sort cards
   const filteredCards = cards

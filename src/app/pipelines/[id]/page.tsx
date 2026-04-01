@@ -149,7 +149,7 @@ export default function PipelineDetailPage() {
   };
 
 
-  const canCreate = user?.role === "owner" || user?.role === "superadmin";
+  const canCreate = !!user; // All authenticated users can manage pipelines now
   const isArchived = pipeline?.status === "archived";
 
   const fetchPipeline = useCallback(async () => {
