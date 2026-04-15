@@ -59,12 +59,21 @@ export const leadsAPI = {
 
 // ============ Price List ============
 export const pricelistAPI = {
-  convert: (formData: FormData) => {
-    return api.post("/pricelist/convert", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
+  convert: (data: {
+    items: {
+      sn: number;
+      name: string;
+      details: string;
+      quantity: number;
+      imageUrl: string | null;
+      price_inr: number;
+    }[];
+    margin: number;
+    pipelineName: string;
+  }) =>
+    api.post("/pricelist/convert", data, {
       responseType: "blob",
-    });
-  },
+    }),
   list: () => api.get("/pricelist"),
 };
 
@@ -85,6 +94,8 @@ export const pipelinesAPI = {
   delete: (id: string) => api.delete(`/pipelines/${id}`),
   archive: (id: string) => api.post(`/pipelines/${id}/archive`),
   unarchive: (id: string) => api.delete(`/pipelines/${id}/archive`),
+  saveFinance: (id: string, rows: any[]) =>
+    api.post(`/pipelines/${id}/finance`, { rows }),
 };
 
 // ============ Design Cards ============

@@ -13,6 +13,7 @@ import {
   FileText,
   ChevronDown,
   ImageIcon,
+  CheckCircle2,
 } from "lucide-react";
 
 interface Pipeline {
@@ -33,6 +34,8 @@ interface DesignCard {
   final_design_url: string | null;
   stage: string;
   created_at: string;
+  price_inr?: number;
+  remarks?: string;
 }
 
 interface FinanceRow {
@@ -56,6 +59,8 @@ export default function FinancePage() {
   const [rows, setRows] = useState<FinanceRow[]>([]);
   const [loadingCards, setLoadingCards] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   // Fetch active pipelines
   const fetchPipelines = async () => {
@@ -90,8 +95,8 @@ export default function FinancePage() {
           imageUrl: card.reference_image_url || card.final_design_url,
           quantity: card.quantity || 1,
           description: card.description || card.title || "",
-          price: "",
-          remarks: "",
+          price: card.price_inr ? card.price_inr.toString() : "",
+          remarks: card.remarks || "",
         }))
       );
     } catch (err) {
@@ -106,6 +111,30 @@ export default function FinancePage() {
       prev.map((r, i) => (i === index ? { ...r, [field]: value } : r))
     );
   };
+
+  // Auto-save effect
+  useEffect(() => {
+    if (!selectedPipeline || rows.length === 0) return;
+
+    setSaveStatus("saving");
+    const timeoutId = setTimeout(async () => {
+      try {
+        const payload = rows.map((r) => ({
+          cardId: r.cardId,
+          price_inr: r.price,
+          remarks: r.remarks,
+        }));
+        await pipelinesAPI.saveFinance(selectedPipeline.id, payload);
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2000);
+      } catch (err) {
+        console.error("Failed to auto-save finance data:", err);
+        setSaveStatus("idle");
+      }
+    }, 1000); // 1s debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [rows, selectedPipeline]);
 
   // Helper: fetch image as base64 data URL
   const fetchImageAsBase64 = async (url: string): Promise<string | null> => {
@@ -360,18 +389,30 @@ export default function FinancePage() {
         </button>
 
         {rows.length > 0 && (
-          <button
-            onClick={handleExportPDF}
-            disabled={exporting}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-emerald-300 bg-emerald-50 text-sm font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
-          >
-            {exporting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4" />
+          <div className="flex items-center gap-4 ml-auto">
+            {saveStatus === "saving" && (
+              <span className="text-sm font-medium text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+              </span>
             )}
-            {exporting ? "Exporting..." : "Export as PDF"}
-          </button>
+            {saveStatus === "saved" && (
+              <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-4 h-4" /> auto-saved
+              </span>
+            )}
+            <button
+              onClick={handleExportPDF}
+              disabled={exporting}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-emerald-300 bg-emerald-50 text-sm font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+            >
+              {exporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              {exporting ? "Exporting..." : "Export as PDF"}
+            </button>
+          </div>
         )}
       </div>
 
